@@ -1,0 +1,11 @@
+[Unit]
+Description=Refreshes tokens used by Spire GitHub
+After=network.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/spire
+EnvironmentFile=/home/ubuntu/spire-secrets/app.env
+ExecStart=/home/ubuntu/spire-env/bin/python -m spire.github.cli installations update

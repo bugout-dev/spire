@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Spire Humbug restricted tokens synchronization every 5 minutes
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=5m
+
+[Install]
+WantedBy=timers.target

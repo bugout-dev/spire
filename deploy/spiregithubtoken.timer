@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Spire GitHub token generator every 2 minutes
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=2m
+
+[Install]
+WantedBy=timers.target

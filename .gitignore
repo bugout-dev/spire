@@ -120,10 +120,27 @@ venv.bak/
 # mkdocs documentation
 /site
 
+### Pycharm ###
+.idea
+
 # mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
+# VS Code
+.vscode/
+
 # Pyre type checker
 .pyre/
+.spire/
+dev.env
+prod.env
+test.env
+alembic.dev.ini
+alembic.prod.ini
+alembic.test.ini
+
+# Custom
+.secrets/
+scratch

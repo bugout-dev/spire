@@ -1,0 +1,12 @@
+title = "Spire OAuth Scopes"
+
+[journals]
+delete = "Grants permission to delete a journal."
+read = "Grants permission to read information about a journal (e.g. journal name, time of creation, members)."
+update = "Grants permission to update information about a journal (e.g. journal name, members)."
+
+[journals.entries]
+create = "Grants permission to create new entries in a journal. Tags can be added during entry creation, but holders may not modify tags on existing entries."
+delete = "Grants permission to delete entries in a journal."
+read = "Grants permission to read entries in a journal."
+update = "Grants permission to update entries in a journal. Tags can be added to or removed from existing entries."

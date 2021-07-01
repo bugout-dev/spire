@@ -1,0 +1,2 @@
+class PreferenceLocked(Exception):
+    pass

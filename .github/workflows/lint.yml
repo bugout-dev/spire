@@ -1,0 +1,20 @@
+name: Lint Spire
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+      - name: Create requirements file for lint environment
+        run: grep -v -e "brood$" requirements.txt | tee requirements.lint.txt
+      - name: Install test requirements
+        run: pip install -r requirements.lint.txt
+      - name: Mypy type check (spire)
+        run: mypy spire/
+      - name: Black syntax check (spire)
+        run: black --check spire/
