@@ -380,7 +380,14 @@ async def delete_humbug_token(
     return restricted_token
 
 
-async def create_report(restricted_token: UUID, journal_id: UUID, report: HumbugReport):
+async def create_report(
+    db_session: Session, restricted_token: UUID, report: HumbugReport
+):
+
+    journal_id = await get_journal_id_by_restricted_token(
+        db_session=db_session, restricted_token=restricted_token
+    )
+
     tags = list(set(report.tags))
     tags.append(f"reporter_token:{str(restricted_token)}")
     try:
@@ -395,4 +402,4 @@ async def create_report(restricted_token: UUID, journal_id: UUID, report: Humbug
         )
     except Exception as e:
         logger.error(f"An error occured due creating entry: {str(e)}")
-        raise BugoutAPICallFailed("Unable create entry.")
+        raise BugoutAPICallFailed(f"Unable create entry. {str(e)}")

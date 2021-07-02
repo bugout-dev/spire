@@ -409,6 +409,7 @@ async def delete_restricted_token_handler(
 @app.post("/reports", tags=["reports"], response_model=None)
 async def create_reports_handler(
     request: Request,
+    background_tasks: BackgroundTasks,
     report: HumbugReport,
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
@@ -421,12 +422,8 @@ async def create_reports_handler(
     """
     restricted_token = request.state.token
     try:
-        journal_id = await actions.get_journal_id_by_restricted_token(
-            db_session, restricted_token=restricted_token
-        )
-
-        await actions.create_report(
-            restricted_token=restricted_token, journal_id=journal_id, report=report
+        background_tasks.add_task(
+            actions.create_report, db_session, restricted_token, report
         )
     except actions.HumbugEventNotFound:
         raise HTTPException(
