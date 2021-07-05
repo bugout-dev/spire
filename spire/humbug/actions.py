@@ -8,6 +8,7 @@ import requests
 from .data import HumbugEventDependencies, HumbugReport
 from .models import HumbugEvent, HumbugBugoutUser, HumbugBugoutUserToken
 from ..broodusers import bugout_api, BugoutAPICallFailed
+from spire.journal import models as journals_models
 from ..utils.settings import (
     INSTALLATION_TOKEN,
     BOT_INSTALLATION_TOKEN_HEADER,
@@ -228,7 +229,7 @@ async def get_journal_id_by_restricted_token(
         .one_or_none()
     )
     if journal_id is None:
-        raise HumbugEventNotFound("Humbug integration not found in database")
+        raise HumbugEventNotFound(f"Humbug integration for token {str(restricted_token)} not found in database")
 
     return journal_id[0]
 
@@ -380,19 +381,67 @@ async def delete_humbug_token(
     return restricted_token
 
 
-async def create_report(restricted_token: UUID, journal_id: UUID, report: HumbugReport):
+async def create_report(db_session: Session, restricted_token: UUID, journal_id: UUID, report: HumbugReport):
     tags = list(set(report.tags))
     tags.append(f"reporter_token:{str(restricted_token)}")
     try:
-        entry = bugout_api.create_entry(
-            token=restricted_token,
+
+        entry = journals_models.JournalEntry(
             journal_id=journal_id,
             title=report.title,
             content=report.content,
-            context_type="humbug",
             context_id=str(restricted_token),
-            tags=tags,
+            context_type="humbug",
         )
+        db_session.add(entry)
+        db_session.commit()
+
+        tags = [
+            journals_models.JournalEntryTag(journal_entry_id=entry.id, tag=tag)
+            for tag in tags
+            if tag
+        ]
+        db_session.add_all(tags)
+        db_session.commit()
     except Exception as e:
         logger.error(f"An error occured due creating entry: {str(e)}")
-        raise BugoutAPICallFailed("Unable create entry.")
+        raise BugoutAPICallFailed(f"Unable create entry.")
+
+async def bulk_create(
+    db_session: Session, restricted_token: UUID, reports: List[HumbugReport]
+):
+
+    journal_id = await get_journal_id_by_restricted_token(
+        db_session=db_session, restricted_token=restricted_token
+    )
+    
+    reports_pack = []
+    reports_tags_pack = []
+    for report in reports:
+        entry_id = uuid4()
+        reports_pack.append(
+            journals_models.JournalEntry(
+                id=entry_id,
+                journal_id=journal_id,
+                title=report.title,
+                content=report.content,
+                context_id=str(restricted_token),
+                context_type="humbug",
+            )
+        )
+        if report.tags is not None:
+            tags = list(set(report.tags))
+            tags.append(f"reporter_token:{str(restricted_token)}")
+            reports_tags_pack += [
+                journals_models.JournalEntryTag(journal_entry_id=entry_id, tag=tag)
+                for tag in tags
+                if tag
+            ]
+        tags = list(set(report.tags))
+        tags.append(f"reporter_token:{str(restricted_token)}")
+
+    db_session.bulk_save_objects(reports_pack)
+    db_session.commit()
+
+    db_session.bulk_save_objects(reports_tags_pack)
+    db_session.commit()

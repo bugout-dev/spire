@@ -1,5 +1,6 @@
 import logging
 from uuid import UUID
+from queue import Queue
 
 from fastapi import (
     FastAPI,
@@ -13,10 +14,13 @@ from fastapi import (
     HTTPException,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from fastapi_utils.tasks import repeat_every
+from sqlalchemy.orm import Session, session
+from typing import Dict, List
 
 from . import actions
 from .data import (
+    HumbugCreatReportTask,
     HumbugIntegrationResponse,
     HumbugIntegrationListResponse,
     HumbugTokenResponse,
@@ -33,6 +37,9 @@ from .version import SPIRE_HUMBUG_VERSION
 SUBMODULE_NAME = "humbug"
 
 logger = logging.getLogger(__name__)
+
+
+reports_queue = Queue()
 
 tags_metadata = [
     {"name": "integrations", "description": "Operations with humbug integrations."},
@@ -410,7 +417,6 @@ async def delete_restricted_token_handler(
 async def create_reports_handler(
     request: Request,
     report: HumbugReport,
-    db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
     Add report to integration journal.
@@ -420,20 +426,29 @@ async def create_reports_handler(
     - **tags** (list): Entry tags
     """
     restricted_token = request.state.token
-    try:
-        journal_id = await actions.get_journal_id_by_restricted_token(
-            db_session, restricted_token=restricted_token
-        )
+    print(restricted_token)
 
-        await actions.create_report(
-            restricted_token=restricted_token, journal_id=journal_id, report=report
-        )
-    except actions.HumbugEventNotFound:
-        raise HTTPException(
-            status_code=403,
-            detail="No found humbug integration by given restricted token.",
-        )
-    except:
-        raise HTTPException(status_code=500, detail="Creating entry error.")
+
+    reports_queue.put(HumbugCreatReportTask(report=report, bugout_token=restricted_token))
+
+    # background_tasks.add_task(
+    #     actions.create_report, db_session, restricted_token, report
+    # )
+
 
     return Response(status_code=200)
+
+@app.on_event("startup")
+@repeat_every(seconds=5)  # 1 hour
+async def push_reports_to_database_task(db_session: Session = Depends(db.yield_connection_from_env)) -> None:
+    reports_groups: Dict[UUID, List[HumbugReport]] = {} 
+    while not reports_queue.empty():
+
+        task: HumbugCreatReportTask = reports_queue.get()
+        if not reports_groups.get(task.bugout_token):
+            reports_groups[task.bugout_token] = [task.report]
+        else:
+            reports_groups[task.bugout_token].append(task.report)
+
+    for token in reports_groups:
+        await actions.bulk_create(db_session=db_session, restricted_token=token, reports=reports_groups[token])
