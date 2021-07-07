@@ -420,11 +420,11 @@ async def create_reports_handler(request: Request, report: HumbugReport,) -> Res
 
     restricted_token = request.state.token
 
-    redis_client = db.redis_cache.redis_cache
+    async with db.yield_redis_pool() as redis_client:
 
-    await redis_client.lpush(
-        "reports_queue",
-        HumbugCreatReportTask(report=report, bugout_token=restricted_token).json(),
-    )
+        await redis_client.lpush(
+            "reports_queue",
+            HumbugCreatReportTask(report=report, bugout_token=restricted_token).json(),
+        )
 
     return Response(status_code=200)

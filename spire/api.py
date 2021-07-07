@@ -16,7 +16,6 @@ from .github.api import app as github_api
 from .preferences.api import app as preferences_api
 from .humbug.api import app as humbug_app
 from .version import SPIRE_VERSION
-from .db import redis_cache
 
 LOG_LEVEL = logging.INFO
 if os.getenv("SPIRE_DEBUG", "").lower() == "true":
@@ -39,16 +38,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def create_redis():
-    await redis_cache.init_cache()
-
-
-@app.on_event("shutdown")
-async def close_redis():
-    await redis_cache.close()
 
 
 @app.get("/ping", response_model=PingResponse)
