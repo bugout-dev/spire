@@ -14,8 +14,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 
-from sqlalchemy.orm import Session, session
-from typing import Dict, List
+from sqlalchemy.orm import Session
 
 from . import actions
 from .data import (
