@@ -1,6 +1,5 @@
 import logging
 from uuid import UUID
-from queue import Queue
 
 from fastapi import (
     FastAPI,
@@ -14,7 +13,7 @@ from fastapi import (
     HTTPException,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_utils.tasks import repeat_every
+
 from sqlalchemy.orm import Session, session
 from typing import Dict, List
 
@@ -37,9 +36,6 @@ from .version import SPIRE_HUMBUG_VERSION
 SUBMODULE_NAME = "humbug"
 
 logger = logging.getLogger(__name__)
-
-
-reports_queue = Queue()
 
 tags_metadata = [
     {"name": "integrations", "description": "Operations with humbug integrations."},
@@ -414,10 +410,7 @@ async def delete_restricted_token_handler(
 
 
 @app.post("/reports", tags=["reports"], response_model=None)
-async def create_reports_handler(
-    request: Request,
-    report: HumbugReport,
-) -> Response:
+async def create_reports_handler(request: Request, report: HumbugReport,) -> Response:
     """
     Add report to integration journal.
 
@@ -425,30 +418,14 @@ async def create_reports_handler(
     - **content** (string): Entry content
     - **tags** (list): Entry tags
     """
+
     restricted_token = request.state.token
-    print(restricted_token)
 
+    redis_client = db.redis_cache.redis_cache
 
-    reports_queue.put(HumbugCreatReportTask(report=report, bugout_token=restricted_token))
-
-    # background_tasks.add_task(
-    #     actions.create_report, db_session, restricted_token, report
-    # )
-
+    await redis_client.lpush(
+        "reports_queue",
+        HumbugCreatReportTask(report=report, bugout_token=restricted_token).json(),
+    )
 
     return Response(status_code=200)
-
-@app.on_event("startup")
-@repeat_every(seconds=5)  # 1 hour
-async def push_reports_to_database_task(db_session: Session = Depends(db.yield_connection_from_env)) -> None:
-    reports_groups: Dict[UUID, List[HumbugReport]] = {} 
-    while not reports_queue.empty():
-
-        task: HumbugCreatReportTask = reports_queue.get()
-        if not reports_groups.get(task.bugout_token):
-            reports_groups[task.bugout_token] = [task.report]
-        else:
-            reports_groups[task.bugout_token].append(task.report)
-
-    for token in reports_groups:
-        await actions.bulk_create(db_session=db_session, restricted_token=token, reports=reports_groups[token])

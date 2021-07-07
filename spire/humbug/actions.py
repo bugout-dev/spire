@@ -229,7 +229,9 @@ async def get_journal_id_by_restricted_token(
         .one_or_none()
     )
     if journal_id is None:
-        raise HumbugEventNotFound(f"Humbug integration for token {str(restricted_token)} not found in database")
+        raise HumbugEventNotFound(
+            f"Humbug integration for token {str(restricted_token)} not found in database"
+        )
 
     return journal_id[0]
 
@@ -381,7 +383,9 @@ async def delete_humbug_token(
     return restricted_token
 
 
-async def create_report(db_session: Session, restricted_token: UUID, journal_id: UUID, report: HumbugReport):
+async def create_report(
+    db_session: Session, restricted_token: UUID, journal_id: UUID, report: HumbugReport
+):
     tags = list(set(report.tags))
     tags.append(f"reporter_token:{str(restricted_token)}")
     try:
@@ -407,6 +411,7 @@ async def create_report(db_session: Session, restricted_token: UUID, journal_id:
         logger.error(f"An error occured due creating entry: {str(e)}")
         raise BugoutAPICallFailed(f"Unable create entry.")
 
+
 async def bulk_create(
     db_session: Session, restricted_token: UUID, reports: List[HumbugReport]
 ):
@@ -414,7 +419,7 @@ async def bulk_create(
     journal_id = await get_journal_id_by_restricted_token(
         db_session=db_session, restricted_token=restricted_token
     )
-    
+
     reports_pack = []
     reports_tags_pack = []
     for report in reports:
