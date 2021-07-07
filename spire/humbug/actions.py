@@ -8,7 +8,6 @@ import requests
 from .data import HumbugEventDependencies, HumbugReport
 from .models import HumbugEvent, HumbugBugoutUser, HumbugBugoutUserToken
 from ..broodusers import bugout_api, BugoutAPICallFailed
-from spire.journal import models as journals_models
 from ..utils.settings import (
     INSTALLATION_TOKEN,
     BOT_INSTALLATION_TOKEN_HEADER,
