@@ -6,14 +6,12 @@ import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-import aioredis # type: ignore
+import aioredis  # type: ignore
 
 from .utils.settings import (
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
-    REDIS_HOST,
-    REDIS_PASSWORD,
-    REDIS_DB,
+    REDIS_URL,
 )
 
 connection_str = os.environ.get("SPIRE_DB_URI")
@@ -33,9 +31,7 @@ class RedisCache:
         self.redis_cache: Optional[Redis] = None
 
     async def init_cache(self):
-        self.redis_cache = await aioredis.create_redis_pool(
-            "redis://localhost:6379/?encoding=utf-8"
-        )
+        self.redis_cache = await aioredis.create_redis_pool(REDIS_URL)
 
     async def close(self):
         self.redis_cache.close()
