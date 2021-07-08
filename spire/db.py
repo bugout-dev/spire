@@ -6,9 +6,7 @@ import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-import aioredis  # type: ignore
-from contextlib import asynccontextmanager
-
+import redis
 from .utils.settings import (
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
@@ -39,14 +37,13 @@ def yield_connection_from_env() -> Session:
         session.close()
 
 
-@asynccontextmanager
-async def yield_redis_pool():
+@contextmanager
+def yield_redis_pool():
     try:
-        redis_pool = await aioredis.create_redis_pool(REDIS_URL)
-        yield redis_pool
+        redis_client = redis.Redis(host="127.0.0.1", port=6379)
+        yield redis_client
     finally:
-        redis_pool.close()
-        await redis_pool.wait_closed()
+        redis_client.close()
 
 
 yield_connection_from_env_ctx = contextmanager(yield_connection_from_env)
