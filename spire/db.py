@@ -10,7 +10,10 @@ import redis
 from .utils.settings import (
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
-    REDIS_URL,
+    REDIS_HOST,
+    REDIS_PORT,
+    REDIS_DRONES_DB,
+    REDIS_PASSWORD,
 )
 
 connection_str = os.environ.get("SPIRE_DB_URI")
@@ -40,7 +43,12 @@ def yield_connection_from_env() -> Session:
 @contextmanager
 def yield_redis_pool():
     try:
-        redis_client = redis.Redis(host="127.0.0.1", port=6379)
+        redis_client = redis.Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            db=REDIS_DRONES_DB,
+            password=REDIS_PASSWORD,
+        )
         yield redis_client
     finally:
         redis_client.close()

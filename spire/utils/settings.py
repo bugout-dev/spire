@@ -69,7 +69,11 @@ GITHUB_REDIRECT_URL = os.environ.get(
     "BUGOUT_GITHUB_REDIRECT_URL", "https://github.com/apps/bugout-dev"
 )
 
-REDIS_URL = os.getenv("REDIS_URL")
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_DRONES_DB = os.getenv("REDIS_DB")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
 
 SPIRE_API_URL = os.environ.get("SPIRE_API_URL", "")
 
