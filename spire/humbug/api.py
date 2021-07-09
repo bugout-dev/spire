@@ -422,7 +422,7 @@ async def create_reports_handler(request: Request, report: HumbugReport,) -> Res
 
     with db.yield_redis_pool() as redis_client:
 
-        redis_client.lpush(
+        redis_client.rpush(
             "reports_queue",
             HumbugCreatReportTask(report=report, bugout_token=restricted_token).json(),
         )
