@@ -69,6 +69,12 @@ GITHUB_REDIRECT_URL = os.environ.get(
     "BUGOUT_GITHUB_REDIRECT_URL", "https://github.com/apps/bugout-dev"
 )
 
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_DRONES_DB = os.getenv("REDIS_DB")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
+
 SPIRE_API_URL = os.environ.get("SPIRE_API_URL", "")
 
 
@@ -102,7 +108,7 @@ DRONES_BUCKET = os.environ.get("AWS_S3_DRONES_BUCKET")
 DRONES_BUCKET_STATISTICS_PREFIX = os.environ.get(
     "AWS_S3_DRONES_BUCKET_STATISTICS_PREFIX", "prod/statistics/journals"
 ).rstrip("/")
-DRONES_URL = os.environ.get("DRONES_URL")
+DRONES_URL = os.environ.get("BUGOUT_DRONES_URL")
 BUGOUT_DRONES_TOKEN = os.environ.get("BUGOUT_DRONES_TOKEN")
 BUGOUT_DRONES_TOKEN_HEADER = os.environ.get("BUGOUT_DRONES_TOKEN_HEADER")
 STATISTICS_S3_PRESIGNED_URL_EXPIRATION_TIME = 60  # seconds
