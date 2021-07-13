@@ -13,7 +13,7 @@ from fastapi import (
     HTTPException,
 )
 from fastapi.middleware.cors import CORSMiddleware
-
+from typing import List
 from sqlalchemy.orm import Session
 
 from . import actions
@@ -430,6 +430,31 @@ async def push_report_to_cache(request: Request, report: HumbugReport,) -> Respo
             HumbugCreateReportTask(
                 report=report, bugout_token=request.state.token
             ).json(),
+        )
+
+    return Response(status_code=200)
+
+
+@app.post("/reports_bulk", tags=["reports"], response_model=None)
+async def bulk_push_reports_to_cache(
+    request: Request, reports_list: List[HumbugReport],
+) -> Response:
+
+    reports_pack = []
+
+    for report in reports_list:
+        report.tags.append(f"reporter_token:{str(request.state.token)}")
+        report.tags = sorted(list(set(report.tags)))
+        reports_pack.append(
+            HumbugCreateReportTask(
+                report=report, bugout_token=request.state.token
+            ).json()
+        )
+
+    with db.yield_redis_env_ctx() as redis_client:
+
+        redis_client.rpush(
+            "reports_queue", *reports_pack,
         )
 
     return Response(status_code=200)
