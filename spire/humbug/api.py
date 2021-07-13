@@ -427,7 +427,9 @@ async def push_report_to_cache(request: Request, report: HumbugReport,) -> Respo
 
         redis_client.rpush(
             "reports_queue",
-            HumbugCreateReportTask(report=report, bugout_token=request.state.token).json(),
+            HumbugCreateReportTask(
+                report=report, bugout_token=request.state.token
+            ).json(),
         )
 
     return Response(status_code=200)
