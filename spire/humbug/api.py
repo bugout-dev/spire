@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from . import actions
 from .data import (
-    HumbugCreatReportTask,
+    HumbugCreateReportTask,
     HumbugIntegrationResponse,
     HumbugIntegrationListResponse,
     HumbugTokenResponse,
@@ -417,14 +417,14 @@ async def create_reports_handler(request: Request, report: HumbugReport,) -> Res
     - **content** (string): Entry content
     - **tags** (list): Entry tags
     """
-
-    restricted_token = request.state.token
+    report.tags.append(f"reporter_token:{str(request.state.token)}")
+    report.tags = list(set(sorted(report.tags)))
 
     with db.yield_redis_pool() as redis_client:
 
         redis_client.rpush(
             "reports_queue",
-            HumbugCreatReportTask(report=report, bugout_token=restricted_token).json(),
+            HumbugCreateReportTask(report=report, bugout_token=request.state.token).json(),
         )
 
     return Response(status_code=200)

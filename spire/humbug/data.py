@@ -49,6 +49,6 @@ class HumbugReport(BaseModel):
     tags: List[str] = Field(default_factory=list)
 
 
-class HumbugCreatReportTask(BaseModel):
+class HumbugCreateReportTask(BaseModel):
     report: HumbugReport
     bugout_token: UUID
