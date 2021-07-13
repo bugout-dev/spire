@@ -39,7 +39,7 @@ def yield_connection_from_env() -> Session:
 
 
 @contextmanager
-def yield_redis_pool():
+def yield_redis_env_ctx():
     try:
         redis_client = redis.Redis().from_url(f"redis://:{BUGOUT_REDIS_PASSWORD}@{BUGOUT_REDIS_URL}")
         yield redis_client

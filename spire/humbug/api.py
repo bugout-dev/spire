@@ -409,18 +409,21 @@ async def delete_restricted_token_handler(
 
 
 @app.post("/reports", tags=["reports"], response_model=None)
-async def create_reports_handler(request: Request, report: HumbugReport,) -> Response:
+async def push_report_to_cache(request: Request, report: HumbugReport,) -> Response:
     """
-    Add report to integration journal.
+    Add report task to redis cache.
 
-    - **title** (string): Entry title
-    - **content** (string): Entry content
-    - **tags** (list): Entry tags
+    report task:
+        - report:
+            - **title** (string): Entry title
+            - **content** (string): Entry content
+            - **tags** (list): Entry tags
+        - **bugout_token** (UUID): Humbug token
     """
     report.tags.append(f"reporter_token:{str(request.state.token)}")
     report.tags = list(set(sorted(report.tags)))
 
-    with db.yield_redis_pool() as redis_client:
+    with db.yield_redis_env_ctx() as redis_client:
 
         redis_client.rpush(
             "reports_queue",
