@@ -421,7 +421,7 @@ async def push_report_to_cache(request: Request, report: HumbugReport,) -> Respo
         - **bugout_token** (UUID): Humbug token
     """
     report.tags.append(f"reporter_token:{str(request.state.token)}")
-    report.tags = list(set(sorted(report.tags)))
+    report.tags = sorted(list(set(report.tags)))
 
     with db.yield_redis_env_ctx() as redis_client:
 
