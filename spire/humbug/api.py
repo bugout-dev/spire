@@ -29,7 +29,12 @@ from ..data import VersionResponse
 from .. import db
 from ..middleware import BroodAuthMiddleware
 from ..broodusers import bugout_api, BugoutAPICallFailed
-from ..utils.settings import SPIRE_OPENAPI_LIST, DOCS_TARGET_PATH, DOCS_PATHS
+from ..utils.settings import (
+    SPIRE_OPENAPI_LIST,
+    DOCS_TARGET_PATH,
+    DOCS_PATHS,
+    REDIS_REPORTS_QUEUE,
+)
 from .version import SPIRE_HUMBUG_VERSION
 
 SUBMODULE_NAME = "humbug"
@@ -409,7 +414,7 @@ async def delete_restricted_token_handler(
 
 
 @app.post("/reports", tags=["reports"], response_model=None)
-async def push_report_to_cache(request: Request, report: HumbugReport,) -> Response:
+async def create_report(request: Request, report: HumbugReport,) -> Response:
     """
     Add report task to redis cache.
 
@@ -420,13 +425,11 @@ async def push_report_to_cache(request: Request, report: HumbugReport,) -> Respo
             - **tags** (list): Entry tags
         - **bugout_token** (UUID): Humbug token
     """
-    report.tags.append(f"reporter_token:{str(request.state.token)}")
-    report.tags = sorted(list(set(report.tags)))
 
     with db.yield_redis_env_ctx() as redis_client:
 
         redis_client.rpush(
-            "reports_queue",
+            REDIS_REPORTS_QUEUE,
             HumbugCreateReportTask(
                 report=report, bugout_token=request.state.token
             ).json(),
@@ -435,16 +438,20 @@ async def push_report_to_cache(request: Request, report: HumbugReport,) -> Respo
     return Response(status_code=200)
 
 
-@app.post("/reports_bulk", tags=["reports"], response_model=None)
-async def bulk_push_reports_to_cache(
+@app.post("/reports/bulk", tags=["reports"], response_model=None)
+async def bulk_create_reports(
     request: Request, reports_list: List[HumbugReport],
 ) -> Response:
+
+    """
+    Create pack of create reports task with they tokens
+    """
+
+    # TODO:(Andrey) Add limit of amount of reports on that endpoint
 
     reports_pack = []
 
     for report in reports_list:
-        report.tags.append(f"reporter_token:{str(request.state.token)}")
-        report.tags = sorted(list(set(report.tags)))
         reports_pack.append(
             HumbugCreateReportTask(
                 report=report, bugout_token=request.state.token
@@ -454,7 +461,7 @@ async def bulk_push_reports_to_cache(
     with db.yield_redis_env_ctx() as redis_client:
 
         redis_client.rpush(
-            "reports_queue", *reports_pack,
+            REDIS_REPORTS_QUEUE, *reports_pack,
         )
 
     return Response(status_code=200)
