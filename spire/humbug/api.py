@@ -94,7 +94,7 @@ async def create_humbug_integration_handler(
 ) -> HumbugIntegrationResponse:
     """
     Create new integration for group with journal for crash reports.
-    
+
     - **group_id** (uuid): Group ID attach integration to
     - **journal_name** (string): Name of journal for humbug reports
     """
@@ -151,7 +151,7 @@ async def get_humbug_integration_list_handler(
 ) -> HumbugIntegrationListResponse:
     """
     Lists all integrations for groups user belongs to.
-        
+
     - **group_id** (uuid, null): Filter integrations by group ID.
     """
     user_group_id_list = request.state.user_group_id_list
@@ -414,7 +414,12 @@ async def delete_restricted_token_handler(
 
 
 @app.post("/reports", tags=["reports"], response_model=None)
-async def create_report(request: Request, report: HumbugReport,) -> Response:
+async def create_report(
+    request: Request,
+    report: HumbugReport,
+    nowait: bool = Query(None),
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> Response:
     """
     Add report task to redis cache.
 
@@ -425,14 +430,28 @@ async def create_report(request: Request, report: HumbugReport,) -> Response:
             - **tags** (list): Entry tags
         - **bugout_token** (UUID): Humbug token
     """
+    restricted_token = request.state.token
+    if not nowait:
 
-    with db.yield_redis_env_ctx() as redis_client:
+        try:
+            with db.yield_redis_env_ctx() as redis_client:
 
-        redis_client.rpush(
-            REDIS_REPORTS_QUEUE,
-            HumbugCreateReportTask(
-                report=report, bugout_token=request.state.token
-            ).json(),
+                redis_client.rpush(
+                    REDIS_REPORTS_QUEUE,
+                    HumbugCreateReportTask(
+                        report=report, bugout_token=restricted_token
+                    ).json(),
+                )
+        except Exception as err:
+            logger.error(f"Error pushing report to redis: {err}")
+            nowait = True
+
+    if nowait:
+        await push_to_database(
+            request=request,
+            reports=[report],
+            db_session=db_session,
+            restricted_token=restricted_token,
         )
 
     return Response(status_code=200)
@@ -440,7 +459,10 @@ async def create_report(request: Request, report: HumbugReport,) -> Response:
 
 @app.post("/reports/bulk", tags=["reports"], response_model=None)
 async def bulk_create_reports(
-    request: Request, reports_list: List[HumbugReport],
+    request: Request,
+    reports_list: List[HumbugReport],
+    nowait: bool = Query(None),
+    db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
 
     """
@@ -451,17 +473,59 @@ async def bulk_create_reports(
 
     reports_pack = []
 
+    restricted_token = request.state.token
+
     for report in reports_list:
         reports_pack.append(
-            HumbugCreateReportTask(
-                report=report, bugout_token=request.state.token
-            ).json()
+            HumbugCreateReportTask(report=report, bugout_token=restricted_token).json()
         )
+    try:
+        with db.yield_redis_env_ctx() as redis_client:
 
-    with db.yield_redis_env_ctx() as redis_client:
+            redis_client.rpush(
+                REDIS_REPORTS_QUEUE, *reports_pack,
+            )
+    except Exception as err:
+        logger.error(f"Error bulk push reports to redis: {err}")
+        nowait = True
 
-        redis_client.rpush(
-            REDIS_REPORTS_QUEUE, *reports_pack,
+    if nowait:
+
+        push_to_database(
+            request=request,
+            reports=reports_list,
+            db_session=db_session,
+            restricted_token=restricted_token,
         )
 
     return Response(status_code=200)
+
+
+async def push_to_database(
+    request: Request,
+    reports: List[HumbugReport],
+    restricted_token: UUID,
+    db_session: Session = Depends(db.yield_connection_from_env),
+):
+
+    """
+    Interface for directly push reports to database
+    using spire api
+    """
+
+    try:
+        journal_id = await actions.get_journal_id_by_restricted_token(
+            db_session, restricted_token=restricted_token
+        )
+        for report in reports:
+
+            await actions.create_report(
+                restricted_token=restricted_token, journal_id=journal_id, report=report
+            )
+    except actions.HumbugEventNotFound:
+        raise HTTPException(
+            status_code=403,
+            detail="No found humbug integration by given restricted token.",
+        )
+    except:
+        raise HTTPException(status_code=500, detail="Creating entry error.")

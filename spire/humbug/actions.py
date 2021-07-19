@@ -359,3 +359,40 @@ async def delete_humbug_token(
     db_session.commit()
 
     return restricted_token
+
+
+async def get_journal_id_by_restricted_token(
+    db_session: Session, restricted_token: UUID
+) -> UUID:
+    """
+    Return journal uuid by given restricted token
+    """
+
+    journal_id = (
+        db_session.query(HumbugEvent.journal_id)
+        .join(HumbugBugoutUserToken, HumbugEvent.id == HumbugBugoutUserToken.event_id)
+        .filter(HumbugBugoutUserToken.restricted_token_id == restricted_token)
+        .one_or_none()
+    )
+    if journal_id is None:
+        raise HumbugEventNotFound("Humbug integration not found in database")
+
+    return journal_id[0]
+
+
+async def create_report(restricted_token: UUID, journal_id: UUID, report: HumbugReport):
+    tags = list(set(report.tags))
+    tags.append(f"reporter_token:{str(restricted_token)}")
+    try:
+        entry = bugout_api.create_entry(
+            token=restricted_token,
+            journal_id=journal_id,
+            title=report.title,
+            content=report.content,
+            context_type="humbug",
+            context_id=str(restricted_token),
+            tags=tags,
+        )
+    except Exception as e:
+        logger.error(f"An error occured due creating entry: {str(e)}")
+        raise BugoutAPICallFailed("Unable create entry.")
