@@ -502,10 +502,8 @@ async def create_journal_entries_pack(
     entries_pack = []
     entries_tags_pack = []
     for entry_request in entries_pack_request.entries:
-        entry_id = uuid4()
         entries_pack.append(
             JournalEntry(
-                id=entry_id,
                 journal_id=journal.id,
                 title=entry_request.title,
                 content=entry_request.content,
@@ -514,16 +512,14 @@ async def create_journal_entries_pack(
                 context_type=entry_request.context_type,
             )
         )
-        if entry_request.tags is not None:
-            entries_tags_pack += [
-                JournalEntryTag(journal_entry_id=entry_id, tag=tag)
-                for tag in entry_request.tags
-                if tag
-            ]
 
+    db_session.bulk_save_objects(entries_pack, return_defaults=True)
+    db_session.commit()
+
+    for index, entry_request in enumerate(entries_pack_request.entries):
         entries_response.entries.append(
             JournalEntryResponse(
-                id=entry_id,
+                id=entries_pack[index].id,
                 title=entry_request.title,
                 content=entry_request.content,
                 tags=entry_request.tags if entry_request.tags is not None else [],
@@ -532,15 +528,19 @@ async def create_journal_entries_pack(
                 context_id=entry_request.context_id,
             )
         )
-
-    db_session.bulk_save_objects(entries_pack)
-    db_session.commit()
-
+        if entry_request.tags is not None:
+            entries_tags_pack += [
+                JournalEntryTag(journal_entry_id=entries_pack[index].id, tag=tag)
+                for tag in entry_request.tags
+                if tag
+            ]
     db_session.bulk_save_objects(entries_tags_pack)
     db_session.commit()
 
     # Append created_at and updated_at from fresh rows from database
-    # TODO(kompotkot): Datetime now not returned from bult_save_objects()
+    # TODO(kompotkot): Datetime now not returned from bulk_save_objects()
+    # (Andrey) Expect it's available in engine.execute() but required engine object
+    # bult_save_objects not provide interface for change returns_defaults list so return just ids
     for entry in entries_response.entries:
         entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
             0
