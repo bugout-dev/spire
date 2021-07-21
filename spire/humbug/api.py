@@ -417,7 +417,7 @@ async def delete_restricted_token_handler(
 async def create_report(
     request: Request,
     report: HumbugReport,
-    nowait: bool = Query(None),
+    sync: bool = Query(None),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
@@ -431,7 +431,7 @@ async def create_report(
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
-    if not nowait:
+    if not sync:
 
         try:
             with db.yield_redis_env_ctx() as redis_client:
@@ -446,7 +446,7 @@ async def create_report(
             logger.error(f"Error pushing report to redis: {err}")
             nowait = True
 
-    if nowait:
+    if sync:
         await push_to_database(
             request=request,
             reports=[report],
@@ -461,7 +461,7 @@ async def create_report(
 async def bulk_create_reports(
     request: Request,
     reports_list: List[HumbugReport],
-    nowait: bool = Query(None),
+    sync: bool = Query(None),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
 
@@ -479,17 +479,18 @@ async def bulk_create_reports(
         reports_pack.append(
             HumbugCreateReportTask(report=report, bugout_token=restricted_token).json()
         )
-    try:
-        with db.yield_redis_env_ctx() as redis_client:
+    if not sync:
+        try:
+            with db.yield_redis_env_ctx() as redis_client:
 
-            redis_client.rpush(
-                REDIS_REPORTS_QUEUE, *reports_pack,
-            )
-    except Exception as err:
-        logger.error(f"Error bulk push reports to redis: {err}")
-        nowait = True
+                redis_client.rpush(
+                    REDIS_REPORTS_QUEUE, *reports_pack,
+                )
+        except Exception as err:
+            logger.error(f"Error bulk push reports to redis: {err}")
+            nowait = True
 
-    if nowait:
+    if sync:
 
         push_to_database(
             request=request,
