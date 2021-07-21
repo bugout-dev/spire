@@ -469,6 +469,8 @@ async def create_journal_entry(
         context_id=entry_request.context_id,
         context_url=entry_request.context_url,
         context_type=entry_request.context_type,
+        created_at=entry_request.created_at,
+        updated_at=entry_request.updated_at,
     )
     db_session.add(entry)
     db_session.commit()

@@ -880,6 +880,8 @@ async def create_journal_entry(
         context_type=entry_request.context_type,
         context_id=entry_request.context_id,
         context_url=entry_request.context_url,
+        created_at=entry_request.created_at,
+        updated_at=entry_request.updated_at,
     )
 
     try:

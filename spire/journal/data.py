@@ -99,6 +99,8 @@ class CreateJournalEntryRequest(BaseModel):
     context_url: Optional[str]
     context_id: Optional[str]
     context_type: Optional[str]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
 
 class JournalEntryContent(BaseModel):
@@ -108,6 +110,8 @@ class JournalEntryContent(BaseModel):
     context_url: Optional[str]
     context_id: Optional[str]
     context_type: Optional[str]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
 
 class JournalEntryListContent(BaseModel):
