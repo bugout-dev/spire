@@ -122,3 +122,11 @@ DOCS_PATHS = []
 for path in SPIRE_OPENAPI_LIST:
     DOCS_PATHS.append(f"/{path}/{DOCS_TARGET_PATH}")
     DOCS_PATHS.append(f"/{path}/{DOCS_TARGET_PATH}/openapi.json")
+
+BUGOUT_HUMBUG_REDIS_TIMEOUT_RAW = os.environ.get("BUGOUT_HUMBUG_REDIS_TIMEOUT")
+BUGOUT_HUMBUG_REDIS_TIMEOUT = 0.5
+if BUGOUT_HUMBUG_REDIS_TIMEOUT_RAW is not None:
+    try:
+        BUGOUT_HUMBUG_REDIS_TIMEOUT = float(BUGOUT_HUMBUG_REDIS_TIMEOUT_RAW)
+    except:
+        pass
