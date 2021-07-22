@@ -50,6 +50,7 @@ RedisPool = redis.ConnectionPool.from_url(
     health_check_interval=10,
 )
 
+
 def redis_connection():
     return redis.Redis(connection_pool=RedisPool)
 
