@@ -2,11 +2,16 @@
 Spire database connection
 """
 from contextlib import contextmanager
+from datetime import time
 import os
+from fastapi import requests
+from redis import connection
+import requests
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import redis
+from sqlalchemy.sql.expression import true
 from .utils.settings import (
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
@@ -38,15 +43,23 @@ def yield_connection_from_env() -> Session:
         session.close()
 
 
-@contextmanager
-def yield_redis_env_ctx():
-    try:
-        redis_client = redis.Redis().from_url(
-            f"redis://:{BUGOUT_REDIS_PASSWORD}@{BUGOUT_REDIS_URL}"
-        )
-        yield redis_client
-    finally:
-        redis_client.close()
+RedisPool = redis.ConnectionPool.from_url(
+    f"redis://:{BUGOUT_REDIS_PASSWORD}@{BUGOUT_REDIS_URL}",
+    socket_timeout=5,
+    health_check_interval=10,
+)
+
+# check if drone online
+try:
+    # requests.get(f"{DRONES_URL}/ping", timeout=3) # just ping drones
+    RedisPool.get_connection("_")
+    REDIS_IS_ONLINE = True
+except:
+    REDIS_IS_ONLINE = False
+
+
+def redis_connection():
+    return redis.Redis(connection_pool=RedisPool)
 
 
 yield_connection_from_env_ctx = contextmanager(yield_connection_from_env)

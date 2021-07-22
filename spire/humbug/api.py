@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from uuid import UUID
 
@@ -58,6 +59,12 @@ app = FastAPI(
     docs_url=None,
     redoc_url=f"/{DOCS_TARGET_PATH}",
 )
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    db.RedisPool.close()
+
 
 allowed_origins = [
     "https://alpha.bugout.dev",
@@ -431,22 +438,24 @@ async def create_report(
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
-    if not sync:
+    if not sync and db.REDIS_IS_ONLINE:
 
         try:
-            with db.yield_redis_env_ctx() as redis_client:
+            redis_client = db.redis_connection()
 
-                redis_client.rpush(
-                    REDIS_REPORTS_QUEUE,
-                    HumbugCreateReportTask(
-                        report=report, bugout_token=restricted_token
-                    ).json(),
-                )
+            redis_client.rpush(
+                REDIS_REPORTS_QUEUE,
+                HumbugCreateReportTask(
+                    report=report,
+                    bugout_token=restricted_token,
+                    reported_at=datetime.utcnow(),
+                ).json(),
+            )
         except Exception as err:
             logger.error(f"Error pushing report to redis: {err}")
             nowait = True
 
-    if sync:
+    if sync or not db.REDIS_IS_ONLINE:
         await push_to_database(
             request=request,
             reports=[report],
@@ -477,20 +486,24 @@ async def bulk_create_reports(
 
     for report in reports_list:
         reports_pack.append(
-            HumbugCreateReportTask(report=report, bugout_token=restricted_token).json()
+            HumbugCreateReportTask(
+                report=report,
+                bugout_token=restricted_token,
+                reported_at=datetime.utcnow(),
+            ).json()
         )
-    if not sync:
+    if not sync and db.REDIS_IS_ONLINE:
         try:
-            with db.yield_redis_env_ctx() as redis_client:
+            redis_client = db.redis_connection()
 
-                redis_client.rpush(
-                    REDIS_REPORTS_QUEUE, *reports_pack,
-                )
+            redis_client.rpush(
+                REDIS_REPORTS_QUEUE, *reports_pack,
+            )
         except Exception as err:
             logger.error(f"Error bulk push reports to redis: {err}")
             nowait = True
 
-    if sync:
+    if sync or not db.REDIS_IS_ONLINE:
 
         push_to_database(
             request=request,

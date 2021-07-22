@@ -52,3 +52,4 @@ class HumbugReport(BaseModel):
 class HumbugCreateReportTask(BaseModel):
     report: HumbugReport
     bugout_token: UUID
+    reported_at: Optional[datetime]
