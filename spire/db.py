@@ -49,15 +49,6 @@ RedisPool = redis.ConnectionPool.from_url(
     health_check_interval=10,
 )
 
-# check if drone online
-try:
-    # requests.get(f"{DRONES_URL}/ping", timeout=3) # just ping drones
-    RedisPool.get_connection("_")
-    REDIS_IS_ONLINE = True
-except:
-    REDIS_IS_ONLINE = False
-
-
 def redis_connection():
     return redis.Redis(connection_pool=RedisPool)
 

@@ -438,8 +438,7 @@ async def create_report(
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
-    if not sync and db.REDIS_IS_ONLINE:
-
+    if not sync:
         try:
             redis_client = db.redis_connection()
 
@@ -453,10 +452,10 @@ async def create_report(
             )
         except Exception as err:
             logger.error(f"Error pushing report to redis: {err}")
-            nowait = True
+            sync = True
 
-    if sync or not db.REDIS_IS_ONLINE:
-        await push_to_database(
+    if sync:
+        await push_to_journals_api(
             request=request,
             reports=[report],
             db_session=db_session,
@@ -492,7 +491,7 @@ async def bulk_create_reports(
                 reported_at=datetime.utcnow(),
             ).json()
         )
-    if not sync and db.REDIS_IS_ONLINE:
+    if not sync:
         try:
             redis_client = db.redis_connection()
 
@@ -501,11 +500,10 @@ async def bulk_create_reports(
             )
         except Exception as err:
             logger.error(f"Error bulk push reports to redis: {err}")
-            nowait = True
+            sync = True
 
-    if sync or not db.REDIS_IS_ONLINE:
-
-        push_to_database(
+    if sync:
+        push_to_journals_api(
             request=request,
             reports=reports_list,
             db_session=db_session,
@@ -515,7 +513,7 @@ async def bulk_create_reports(
     return Response(status_code=200)
 
 
-async def push_to_database(
+async def push_to_journals_api(
     request: Request,
     reports: List[HumbugReport],
     restricted_token: UUID,
