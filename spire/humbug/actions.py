@@ -214,25 +214,6 @@ async def get_humbug_integration(
     return humbug_event
 
 
-async def get_journal_id_by_restricted_token(
-    db_session: Session, restricted_token: UUID
-) -> UUID:
-    """
-    Return journal uuid by given restricted token
-    """
-
-    journal_id = (
-        db_session.query(HumbugEvent.journal_id)
-        .join(HumbugBugoutUserToken, HumbugEvent.id == HumbugBugoutUserToken.event_id)
-        .filter(HumbugBugoutUserToken.restricted_token_id == restricted_token)
-        .one_or_none()
-    )
-    if journal_id is None:
-        raise HumbugEventNotFound("Humbug integration not found in database")
-
-    return journal_id[0]
-
-
 async def get_humbug_integrations(
     db_session: Session, groups_ids: List[UUID]
 ) -> List[HumbugEvent]:
@@ -378,6 +359,25 @@ async def delete_humbug_token(
     db_session.commit()
 
     return restricted_token
+
+
+async def get_journal_id_by_restricted_token(
+    db_session: Session, restricted_token: UUID
+) -> UUID:
+    """
+    Return journal uuid by given restricted token
+    """
+
+    journal_id = (
+        db_session.query(HumbugEvent.journal_id)
+        .join(HumbugBugoutUserToken, HumbugEvent.id == HumbugBugoutUserToken.event_id)
+        .filter(HumbugBugoutUserToken.restricted_token_id == restricted_token)
+        .one_or_none()
+    )
+    if journal_id is None:
+        raise HumbugEventNotFound("Humbug integration not found in database")
+
+    return journal_id[0]
 
 
 async def create_report(restricted_token: UUID, journal_id: UUID, report: HumbugReport):

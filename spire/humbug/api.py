@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from uuid import UUID
 
@@ -13,10 +14,12 @@ from fastapi import (
     HTTPException,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 from sqlalchemy.orm import Session
 
 from . import actions
 from .data import (
+    HumbugCreateReportTask,
     HumbugIntegrationResponse,
     HumbugIntegrationListResponse,
     HumbugTokenResponse,
@@ -27,7 +30,12 @@ from ..data import VersionResponse
 from .. import db
 from ..middleware import BroodAuthMiddleware
 from ..broodusers import bugout_api, BugoutAPICallFailed
-from ..utils.settings import SPIRE_OPENAPI_LIST, DOCS_TARGET_PATH, DOCS_PATHS
+from ..utils.settings import (
+    SPIRE_OPENAPI_LIST,
+    DOCS_TARGET_PATH,
+    DOCS_PATHS,
+    REDIS_REPORTS_QUEUE,
+)
 from .version import SPIRE_HUMBUG_VERSION
 
 SUBMODULE_NAME = "humbug"
@@ -51,6 +59,12 @@ app = FastAPI(
     docs_url=None,
     redoc_url=f"/{DOCS_TARGET_PATH}",
 )
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    db.RedisPool.close()
+
 
 allowed_origins = [
     "https://alpha.bugout.dev",
@@ -87,7 +101,7 @@ async def create_humbug_integration_handler(
 ) -> HumbugIntegrationResponse:
     """
     Create new integration for group with journal for crash reports.
-    
+
     - **group_id** (uuid): Group ID attach integration to
     - **journal_name** (string): Name of journal for humbug reports
     """
@@ -144,7 +158,7 @@ async def get_humbug_integration_list_handler(
 ) -> HumbugIntegrationListResponse:
     """
     Lists all integrations for groups user belongs to.
-        
+
     - **group_id** (uuid, null): Filter integrations by group ID.
     """
     user_group_id_list = request.state.user_group_id_list
@@ -407,27 +421,119 @@ async def delete_restricted_token_handler(
 
 
 @app.post("/reports", tags=["reports"], response_model=None)
-async def create_reports_handler(
+async def create_report(
     request: Request,
     report: HumbugReport,
+    sync: bool = Query(None),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
-    Add report to integration journal.
+    Add report task to redis cache.
 
-    - **title** (string): Entry title
-    - **content** (string): Entry content
-    - **tags** (list): Entry tags
+    report task:
+        - report:
+            - **title** (string): Entry title
+            - **content** (string): Entry content
+            - **tags** (list): Entry tags
+        - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
+    if not sync:
+        try:
+            redis_client = db.redis_connection()
+
+            redis_client.rpush(
+                REDIS_REPORTS_QUEUE,
+                HumbugCreateReportTask(
+                    report=report,
+                    bugout_token=restricted_token,
+                    reported_at=datetime.utcnow(),
+                ).json(),
+            )
+        except Exception as err:
+            logger.error(f"Error pushing report to redis: {err}")
+            sync = True
+
+    if sync:
+        await push_to_journals_api(
+            request=request,
+            reports=[report],
+            db_session=db_session,
+            restricted_token=restricted_token,
+        )
+
+    return Response(status_code=200)
+
+
+@app.post("/reports/bulk", tags=["reports"], response_model=None)
+async def bulk_create_reports(
+    request: Request,
+    reports_list: List[HumbugReport],
+    sync: bool = Query(None),
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> Response:
+
+    """
+    Create pack of create reports task with they tokens
+    """
+
+    # TODO:(Andrey) Add limit of amount of reports on that endpoint
+
+    reports_pack = []
+
+    restricted_token = request.state.token
+
+    for report in reports_list:
+        reports_pack.append(
+            HumbugCreateReportTask(
+                report=report,
+                bugout_token=restricted_token,
+                reported_at=datetime.utcnow(),
+            ).json()
+        )
+    if not sync:
+        try:
+            redis_client = db.redis_connection()
+
+            redis_client.rpush(
+                REDIS_REPORTS_QUEUE, *reports_pack,
+            )
+        except Exception as err:
+            logger.error(f"Error bulk push reports to redis: {err}")
+            sync = True
+
+    if sync:
+        push_to_journals_api(
+            request=request,
+            reports=reports_list,
+            db_session=db_session,
+            restricted_token=restricted_token,
+        )
+
+    return Response(status_code=200)
+
+
+async def push_to_journals_api(
+    request: Request,
+    reports: List[HumbugReport],
+    restricted_token: UUID,
+    db_session: Session = Depends(db.yield_connection_from_env),
+):
+
+    """
+    Interface for directly push reports to database
+    using spire api
+    """
+
     try:
         journal_id = await actions.get_journal_id_by_restricted_token(
             db_session, restricted_token=restricted_token
         )
+        for report in reports:
 
-        await actions.create_report(
-            restricted_token=restricted_token, journal_id=journal_id, report=report
-        )
+            await actions.create_report(
+                restricted_token=restricted_token, journal_id=journal_id, report=report
+            )
     except actions.HumbugEventNotFound:
         raise HTTPException(
             status_code=403,
@@ -435,5 +541,3 @@ async def create_reports_handler(
         )
     except:
         raise HTTPException(status_code=500, detail="Creating entry error.")
-
-    return Response(status_code=200)
