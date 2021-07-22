@@ -4,14 +4,12 @@ Spire database connection
 from contextlib import contextmanager
 from datetime import time
 import os
-from fastapi import requests
-from redis import connection
-import requests
 
+import redis
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-import redis
 from sqlalchemy.sql.expression import true
+
 from .utils.settings import (
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
