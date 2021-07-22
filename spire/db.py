@@ -18,6 +18,7 @@ from .utils.settings import (
     BUGOUT_REDIS_URL,
     BUGOUT_REDIS_PASSWORD,
     BUGOUT_HUMBUG_REDIS_TIMEOUT,
+    BUGOUT_HUMBUG_REDIS_CONNECTIONS_PER_PROCESS,
 )
 
 connection_str = os.environ.get("SPIRE_DB_URI")
@@ -46,6 +47,7 @@ def yield_connection_from_env() -> Session:
 
 RedisPool = redis.ConnectionPool.from_url(
     f"redis://:{BUGOUT_REDIS_PASSWORD}@{BUGOUT_REDIS_URL}",
+    max_connections=BUGOUT_HUMBUG_REDIS_CONNECTIONS_PER_PROCESS,
     socket_timeout=BUGOUT_HUMBUG_REDIS_TIMEOUT,
     health_check_interval=10,
 )
