@@ -463,9 +463,10 @@ async def create_journal_entry(
         user_group_id_list=user_group_id_list,
     )
 
-    if entry_request.created_at and entry_request.created_at > datetime.utcnow():
-        entry_request.created_at = datetime.utcnow()
+    if entry_request.created_at:
         entry_request.tags.append(f"reported_at:{datetime.utcnow()}")
+        if entry_request.created_at > datetime.utcnow():
+            entry_request.created_at = datetime.utcnow()
 
     if entry_request.updated_at and entry_request.updated_at > datetime.utcnow():
         entry_request.updated_at = datetime.utcnow()
