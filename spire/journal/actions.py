@@ -591,13 +591,15 @@ async def delete_entry_images(
 ) -> None:
     images_url = f"https://files.bugout.dev/files/{str(journal_spec.id)}/entries/{str(entry_id)}/images"
     headers = {"Authorization": f"Bearer {access_token}"}
-    images_response = requests.get(images_url, headers=headers)
+    images_response = requests.get(images_url, headers=headers, timeout=4)
     images_response.raise_for_status()
     images = images_response.json()
 
     for image in images.images:
         try:
-            r = requests.delete(f"{images_url}/{image['id']}", headers=headers)
+            r = requests.delete(
+                f"{images_url}/{image['id']}", headers=headers, timeout=4
+            )
             r.raise_for_status()
         except Exception as e:
             logger.error(
