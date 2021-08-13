@@ -600,7 +600,9 @@ async def delete_entry_images(
             r = requests.delete(f"{images_url}/{image['id']}", headers=headers)
             r.raise_for_status()
         except Exception as e:
-            logger.error(f"Unable to delete image with id: {image['id']} for entry with id: {str(entry_id)}")
+            logger.error(
+                f"Unable to delete image with id: {image['id']} for entry with id: {str(entry_id)}"
+            )
 
 
 async def delete_journal_entry(
