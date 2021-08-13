@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Set, Optional, Union
 from uuid import UUID, uuid4
 
 import boto3
+import requests
 
 from sqlalchemy.orm import Session, Query
 from sqlalchemy import or_, func, text, and_
@@ -583,6 +584,23 @@ async def get_journal_entries(
     query = query.order_by(JournalEntry.created_at)
     query = query.limit(limit).offset(offset)
     return query.all()
+
+
+async def delete_entry_images(
+    access_token: str, journal_spec: JournalSpec, entry_id: UUID
+) -> None:
+    images_url = f"https://files.bugout.dev/files/{str(journal_spec.id)}/entries/{str(entry_id)}/images"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    images_response = requests.get(images_url, headers=headers)
+    images_response.raise_for_status()
+    images = images_response.json()
+
+    for image in images.images:
+        try:
+            r = requests.delete(f"{images_url}/{image['id']}", headers=headers)
+            r.raise_for_status()
+        except Exception as e:
+            logger.error(f"Unable to delete image with id: {image['id']} for entry with id: {str(entry_id)}")
 
 
 async def delete_journal_entry(
