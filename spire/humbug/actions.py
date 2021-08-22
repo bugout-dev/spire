@@ -1,5 +1,5 @@
 import logging
-from typing import Any, cast, Dict, List, Optional
+from typing import cast, List
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -380,19 +380,41 @@ async def get_journal_id_by_restricted_token(
     return journal_id[0]
 
 
-async def create_report(restricted_token: UUID, journal_id: UUID, report: HumbugReport):
-    tags = list(set(report.tags))
-    tags.append(f"reporter_token:{str(restricted_token)}")
-    try:
-        entry = bugout_api.create_entry(
-            token=restricted_token,
-            journal_id=journal_id,
-            title=report.title,
-            content=report.content,
-            context_type="humbug",
-            context_id=str(restricted_token),
-            tags=tags,
+async def create_bulk_report(
+    restricted_token: UUID, journal_id: UUID, reports: List[HumbugReport]
+) -> None:
+    entries = []
+    for report in reports:
+        tags = list(set(report.tags))
+        tags.append(f"reporter_token:{str(restricted_token)}")
+        entries.append(
+            {
+                "title": report.title,
+                "content": report.content,
+                "tags": tags,
+                "context_id": str(restricted_token),
+                "context_type": "humbug",
+            }
         )
+    try:
+        entries = bugout_api.create_entries_pack(
+            token=restricted_token, journal_id=journal_id, entries=entries,
+        )  # type: ignore
     except Exception as e:
         logger.error(f"An error occured due creating entry: {str(e)}")
         raise BugoutAPICallFailed("Unable create entry.")
+
+
+async def push_to_journals_api(
+    db_session: Session, reports: List[HumbugReport], restricted_token: UUID,
+) -> None:
+    """
+    Interface for directly push reports to database
+    using spire api
+    """
+    journal_id = await get_journal_id_by_restricted_token(
+        db_session, restricted_token=restricted_token
+    )
+    await create_bulk_report(
+        restricted_token=restricted_token, journal_id=journal_id, reports=reports
+    )
