@@ -514,7 +514,7 @@ async def bulk_create_reports(
 
     if sync:
         try:
-            actions.push_to_journals_api(
+            await actions.push_to_journals_api(
                 db_session=db_session,
                 reports=reports_list,
                 restricted_token=restricted_token,
