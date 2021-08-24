@@ -114,10 +114,6 @@ class JournalEntryListContent(BaseModel):
     entries: List[JournalEntryContent] = Field(default_factory=list)
 
 
-class CreateJournalEntryListRequest(JournalEntryListContent):
-    journal_spec: JournalSpec
-
-
 class JournalEntryResponse(BaseModel):
     id: uuid.UUID
     journal_url: Optional[str]
