@@ -544,15 +544,19 @@ async def create_journal_entries_pack(
         db_session.bulk_save_objects(entries_tags_pack)
         db_session.commit()
 
-    # Append created_at and updated_at from fresh rows from database
-    # TODO(kompotkot): Datetime now not returned from bult_save_objects()
-    for entry in entries_response.entries:
-        entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
-            0
-        ].created_at
-        entry.updated_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
-            0
-        ].updated_at
+        # Append created_at and updated_at from fresh rows from database
+        # TODO(kompotkot): Datetime now not returned from bult_save_objects()
+        for entry in [
+            e1
+            for e1 in entries_response.entries
+            if e1.id in [e2.id for e2 in entries_pack]
+        ]:
+            entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
+                0
+            ].created_at
+            entry.updated_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
+                0
+            ].updated_at
 
     return entries_response
 

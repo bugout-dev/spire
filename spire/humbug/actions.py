@@ -5,7 +5,9 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 import requests
 
+from ..journal.actions import create_journal_entries_pack
 from .data import HumbugEventDependencies, HumbugReport
+from ..journal.data import JournalEntryContent, JournalEntryListContent
 from .models import HumbugEvent, HumbugBugoutUser, HumbugBugoutUserToken
 from ..broodusers import bugout_api, BugoutAPICallFailed
 from ..utils.settings import (
@@ -384,7 +386,6 @@ async def get_journal_id_by_restricted_token(
     """
     Return journal uuid by given restricted token
     """
-
     journal_id = (
         db_session.query(HumbugEvent.journal_id)
         .join(HumbugBugoutUserToken, HumbugEvent.id == HumbugBugoutUserToken.event_id)
@@ -397,44 +398,31 @@ async def get_journal_id_by_restricted_token(
     return journal_id[0]
 
 
-async def create_bulk_report(
-    restricted_token: UUID, journal_id: UUID, reports: List[HumbugReport]
+async def push_pack_to_journals_api(
+    db_session: Session,
+    reports: List[HumbugReport],
+    restricted_token: UUID,
+    journal_id: UUID,
 ) -> None:
-    entries = []
+    """
+    Interface for directly push reports to database using spire journal api.
+    """
     for report in reports:
         tags = list(set(report.tags))
         tags.append(f"reporter_token:{str(restricted_token)}")
-        entries.append(
-            {
-                "title": report.title,
-                "content": report.content,
-                "tags": tags,
-                "context_id": str(restricted_token),
-                "context_type": "humbug",
-            }
-        )
-    try:
-        entries = bugout_api.create_entries_pack(
-            token=restricted_token,
-            journal_id=journal_id,
-            entries=entries,
-            timeout=BUGOUT_TIMEOUT_SECONDS,
-        )  # type: ignore
-    except Exception as e:
-        logger.error(f"An error occured due creating entry: {str(e)}")
-        raise BugoutAPICallFailed("Unable create entry.")
+        report.tags = tags
 
+    entries_pack_request = JournalEntryListContent(
+        entries=[
+            JournalEntryContent(
+                title=report.title,
+                content=report.content,
+                tags=report.tags,
+                context_id=str(restricted_token),
+                context_type="humbug",
+            )
+            for report in reports
+        ]
+    )
 
-async def push_to_journals_api(
-    db_session: Session, reports: List[HumbugReport], restricted_token: UUID,
-) -> None:
-    """
-    Interface for directly push reports to database
-    using spire api
-    """
-    journal_id = await get_journal_id_by_restricted_token(
-        db_session, restricted_token=restricted_token
-    )
-    await create_bulk_report(
-        restricted_token=restricted_token, journal_id=journal_id, reports=reports
-    )
+    await create_journal_entries_pack(db_session, journal_id, entries_pack_request)

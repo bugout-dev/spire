@@ -424,7 +424,7 @@ async def delete_restricted_token_handler(
 async def create_report(
     request: Request,
     report: HumbugReport,
-    sync: bool = Query(None),
+    sync: bool = Query(False),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
@@ -438,6 +438,16 @@ async def create_report(
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
+
+    try:
+        journal_id = await actions.get_journal_id_by_restricted_token(
+            db_session, restricted_token=restricted_token
+        )
+    except actions.HumbugEventNotFound:
+        raise HTTPException(
+            status_code=404, detail="Humbug integration not found in database"
+        )
+
     if not sync:
         try:
             redis_client = db.redis_connection()
@@ -456,10 +466,11 @@ async def create_report(
 
     if sync:
         try:
-            await actions.push_to_journals_api(
+            await actions.push_pack_to_journals_api(
                 db_session=db_session,
                 reports=[report],
                 restricted_token=restricted_token,
+                journal_id=journal_id,
             )
         except BugoutAPICallFailed:
             raise HTTPException(
@@ -481,7 +492,7 @@ async def create_report(
 async def bulk_create_reports(
     request: Request,
     reports_list: List[HumbugReport],
-    sync: bool = Query(None),
+    sync: bool = Query(False),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
@@ -490,9 +501,17 @@ async def bulk_create_reports(
     # TODO:(Andrey) Add limit of amount of reports on that endpoint
     restricted_token = request.state.token
 
+    try:
+        journal_id = await actions.get_journal_id_by_restricted_token(
+            db_session, restricted_token=restricted_token
+        )
+    except actions.HumbugEventNotFound:
+        raise HTTPException(
+            status_code=404, detail="Humbug integration not found in database"
+        )
+
     if not sync:
         reports_pack = []
-
         for report in reports_list:
             reports_pack.append(
                 HumbugCreateReportTask(
@@ -514,10 +533,11 @@ async def bulk_create_reports(
 
     if sync:
         try:
-            await actions.push_to_journals_api(
+            await actions.push_pack_to_journals_api(
                 db_session=db_session,
                 reports=reports_list,
                 restricted_token=restricted_token,
+                journal_id=journal_id,
             )
         except BugoutAPICallFailed:
             raise HTTPException(
