@@ -12,8 +12,7 @@ class BugoutAuthConfigurationError(ValueError):
 
 BUGOUT_TIMEOUT_SECONDS_RAW = os.environ.get("BUGOUT_TIMEOUT_SECONDS", 5)
 try:
-    if BUGOUT_TIMEOUT_SECONDS_RAW is not None:
-        BUGOUT_TIMEOUT_SECONDS = int(BUGOUT_TIMEOUT_SECONDS_RAW)
+    BUGOUT_TIMEOUT_SECONDS = int(BUGOUT_TIMEOUT_SECONDS_RAW)
 except:
     raise Exception(
         f"Could not parse BUGOUT_TIMEOUT_SECONDS as int: {BUGOUT_TIMEOUT_SECONDS_RAW}"
