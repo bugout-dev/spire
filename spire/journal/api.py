@@ -27,7 +27,6 @@ from .data import (
     CreateJournalAPIRequest,
     CreateJournalRequest,
     CreateJournalEntryRequest,
-    CreateJournalEntryListRequest,
     JournalEntryContent,
     JournalEntryListContent,
     CreateJournalEntryTagRequest,
@@ -974,20 +973,6 @@ async def create_journal_entries_pack(
         {JournalEntryScopes.CREATE},
     )
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    creation_request = CreateJournalEntryListRequest(
-        journal_spec=journal_spec,
-        entries=[
-            JournalEntryContent(
-                title=entry.title,
-                content=entry.content,
-                tags=entry.tags,
-                context_type=entry.context_type,
-                context_id=entry.context_id,
-                context_url=entry.context_url,
-            )
-            for entry in entries_request.entries
-        ],
-    )
 
     try:
         journal = await actions.find_journal(
@@ -1003,13 +988,10 @@ async def create_journal_entries_pack(
     except Exception as e:
         logger.error(f"Error retrieving journal: {str(e)}")
         raise HTTPException(status_code=500)
-    es_index = journal.search_index
 
     try:
         journal_entries_response = await actions.create_journal_entries_pack(
-            db_session,
-            creation_request,
-            user_group_id_list=request.state.user_group_id_list,
+            db_session, journal.id, entries_request,
         )
     except actions.JournalNotFound:
         logger.error(
@@ -1020,12 +1002,9 @@ async def create_journal_entries_pack(
         logger.error(f"Error creating journal entry: {str(e)}")
         raise HTTPException(status_code=500)
 
-    url: str = str(request.url).rstrip("/")
-    journal_url = "/".join(url.split("/")[:-1])
-
+    es_index = journal.search_index
     if es_index is not None:
-
-        operation_response = search.bulk_create_entries(
+        search.bulk_create_entries(
             es_client, es_index, journal_id, journal_entries_response.entries
         )
 
