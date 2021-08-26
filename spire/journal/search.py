@@ -657,9 +657,7 @@ def search_database(
         query = query.filter(JournalEntry.id.in_(required_entries))
 
     if search_query.optional_tags:
-        # We need to return ALL tags on entries that make the cut. So we use a subquery to filter
-        # out inadmissible tags but then use the top-level join to return all tags for admissible
-        # entries.
+
         optionals_entries = (
             db_session.query(JournalEntry.id)
             .filter(JournalEntry.journal_id == journal_id)
