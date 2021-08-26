@@ -14,7 +14,7 @@ from dateutil.parser import parse as parse_datetime
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from . import actions
@@ -639,7 +639,7 @@ def search_database(
         # We need to return ALL tags on entries that make the cut. So we use a subquery to filter
         # out inadmissible tags but then use the top-level join to return all tags for admissible
         # entries.
-        admissible_entries = (
+        required_entries = (
             db_session.query(JournalEntry.id)
             .filter(JournalEntry.journal_id == journal_id)
             .filter(
@@ -654,7 +654,29 @@ def search_database(
                 )
             )
         )
-        query = query.filter(JournalEntry.id.in_(admissible_entries))
+        query = query.filter(JournalEntry.id.in_(required_entries))
+
+    if search_query.optional_tags:
+        # We need to return ALL tags on entries that make the cut. So we use a subquery to filter
+        # out inadmissible tags but then use the top-level join to return all tags for admissible
+        # entries.
+        optionals_entries = (
+            db_session.query(JournalEntry.id)
+            .filter(JournalEntry.journal_id == journal_id)
+            .filter(
+                or_(
+                    *[
+                        db_session.query(JournalEntryTag)
+                        .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+                        .filter(JournalEntryTag.tag == tag)
+                        .exists()
+                        for tag in search_query.optional_tags
+                    ]
+                )
+            )
+        )
+        query = query.filter(JournalEntry.id.in_(optionals_entries))
+
     if search_query.forbidden_tags:
         # For the negation, we have to make a subquery which returns the IDs of all entries that
         # contain forbidden tags and then exclude entries whose IDs are in those results.
