@@ -380,7 +380,7 @@ def main() -> None:
         "-c",
         "--conditions",
         required=True,
-        help='Rule conditions, as ex: \'{"created_at": 123, "tags": ["client_id:server-1"]}\'',
+        help='Rule conditions, as ex: \'{"ttl": 3600, "tags": ["client_id:server-1"]}\'',
     )
     parser_rules_add.add_argument(
         "-a",
