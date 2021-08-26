@@ -5,11 +5,13 @@ import argparse
 import json
 from typing import Any, cast, Callable, Dict, List, Optional
 
+from sqlalchemy import text
+
 from . import actions
 from . import data
 from . import search
 from ..db import SessionLocal
-from .models import Journal, JournalPermissions, HolderType
+from .models import Journal, JournalPermissions, HolderType, JournalTtl
 from ..utils.confparse import scope_conf
 from ..utils.settings import DEFAULT_JOURNALS_ES_INDEX
 from ..es import yield_es_client_from_env_ctx
@@ -159,6 +161,130 @@ def journal_backup_purge_handler(args: argparse.Namespace) -> None:
         session.close()
 
 
+def journal_rules_list_handler(args: argparse.Namespace) -> None:
+    """
+    List journal entry rules.
+    """
+    db_session = SessionLocal()
+    try:
+        query = db_session.query(JournalTtl)
+        if args.journal is not None:
+            query = query.filter(JournalTtl.journal_id == args.journal)
+
+        rules = query.all()
+        print(
+            data.JournalTtlRulesListResponse(
+                rules=[
+                    data.JournalTtlRuleResponse(
+                        id=rule.id,
+                        journal_id=rule.journal_id,
+                        name=rule.name,
+                        conditions=rule.conditions,
+                        action=data.RuleActions(rule.action).value,
+                        active=rule.active,
+                        created_at=rule.created_at,
+                    )
+                    for rule in rules
+                ]
+            ).json()
+        )
+    finally:
+        db_session.close()
+
+
+def journal_rules_add_handler(args: argparse.Namespace) -> None:
+    """
+    Create new entry rule.
+    """
+    db_session = SessionLocal()
+    try:
+        latest_rule_id = (
+            db_session.query(JournalTtl.id)
+            .order_by(text("id desc"))
+            .limit(1)
+            .one_or_none()
+        )
+        if latest_rule_id is None:
+            latest_rule_id = 0
+        else:
+            latest_rule_id = latest_rule_id[0]
+
+        rule = JournalTtl(
+            id=latest_rule_id + 1,
+            journal_id=args.journal,
+            name=args.name,
+            conditions=json.loads(args.conditions),
+            action=args.action,
+            active=args.active,
+        )
+        db_session.add(rule)
+        db_session.commit()
+
+        print(
+            data.JournalTtlRuleResponse(
+                id=rule.id,
+                journal_id=rule.journal_id,
+                name=rule.name,
+                conditions=rule.conditions,
+                action=data.RuleActions(rule.action).value,
+                active=rule.active,
+                created_at=rule.created_at,
+            ).json()
+        )
+    finally:
+        db_session.close()
+
+
+def journal_rules_switch_handler(args: argparse.Namespace) -> None:
+    """
+    Mark rule as active or incactive.
+    """
+    db_session = SessionLocal()
+    try:
+        query = db_session.query(JournalTtl).filter(JournalTtl.id == args.id)
+        rule = query.one()
+        query.update({JournalTtl.active: args.active})
+        db_session.commit()
+
+        print(
+            data.JournalTtlRuleResponse(
+                id=rule.id,
+                journal_id=rule.journal_id,
+                name=rule.name,
+                conditions=rule.conditions,
+                action=data.RuleActions(rule.action).value,
+                active=rule.active,
+                created_at=rule.created_at,
+            ).json()
+        )
+    finally:
+        db_session.close()
+
+
+def journal_rules_delete_handler(args: argparse.Namespace) -> None:
+    """
+    Delete journal rule.
+    """
+    db_session = SessionLocal()
+    try:
+        rule = db_session.query(JournalTtl).filter(JournalTtl.id == args.id).one()
+        db_session.delete(rule)
+        db_session.commit()
+        print(
+            data.JournalTtlRuleResponse(
+                id=rule.id,
+                journal_id=rule.journal_id,
+                name=rule.name,
+                conditions=rule.conditions,
+                action=data.RuleActions(rule.action).value,
+                active=rule.active,
+                created_at=rule.created_at,
+            ).json()
+        )
+    finally:
+        db_session.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Spire Journal CLI")
     parser.set_defaults(func=lambda _: parser.print_help())
@@ -233,6 +359,52 @@ def main() -> None:
         "-j", "--journal", required=True, help="Journal id",
     )
     parser_backup_purge.set_defaults(func=journal_backup_purge_handler)
+
+    # Rules module
+    parser_rules = subcommands.add_parser("rules", description="Journal rules")
+    parser_rules.set_defaults(func=lambda _: parser_rules.print_help())
+    subcommands_rules = parser_rules.add_subparsers(
+        description="Handler to manage journal rules"
+    )
+    parser_rules_list = subcommands_rules.add_parser(
+        "list", description="List all rules for provided journal"
+    )
+    parser_rules_list.add_argument("-j", "--journal", help="Journal ID")
+    parser_rules_list.set_defaults(func=journal_rules_list_handler)
+    parser_rules_add = subcommands_rules.add_parser(
+        "add", description="Add rule for provided journal"
+    )
+    parser_rules_add.add_argument("-j", "--journal", required=True, help="Journal ID")
+    parser_rules_add.add_argument("-n", "--name", required=True, help="Rule name")
+    parser_rules_add.add_argument(
+        "-c",
+        "--conditions",
+        required=True,
+        help='Rule conditions, as ex: \'{"created_at": 123, "tags": ["client_id:server-1"]}\'',
+    )
+    parser_rules_add.add_argument(
+        "-a",
+        "--action",
+        required=True,
+        help=f"Rule actions: {[member for member in data.RuleActions.__members__]}",
+    )
+    parser_rules_add.add_argument(
+        "--active", action="store_true", help="Provide to activate rule"
+    )
+    parser_rules_add.set_defaults(func=journal_rules_add_handler)
+    parser_rules_switch = subcommands_rules.add_parser(
+        "switch", description="Switch active rule with provided ID"
+    )
+    parser_rules_switch.add_argument("-i", "--id", required=True, help="Rule ID")
+    parser_rules_switch.add_argument(
+        "--active", action="store_true", help="Provide to activate rule"
+    )
+    parser_rules_switch.set_defaults(func=journal_rules_switch_handler)
+    parser_rules_delete = subcommands_rules.add_parser(
+        "delete", description="Delete rule with provided ID"
+    )
+    parser_rules_delete.add_argument("-i", "--id", required=True, help="Rule ID")
+    parser_rules_delete.set_defaults(func=journal_rules_delete_handler)
 
     args = parser.parse_args()
     args.func(args)

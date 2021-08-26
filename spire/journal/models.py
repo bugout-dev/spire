@@ -16,9 +16,10 @@ from sqlalchemy import (
     UniqueConstraint,
     MetaData,
     PrimaryKeyConstraint,
+    VARCHAR,
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from brood.models import utcnow
 
@@ -206,3 +207,32 @@ class SpireOAuthScopes(Base):  # type: ignore
     api = Column(String, nullable=False)
     scope = Column(String, nullable=False, unique=True)
     description = Column(String, nullable=False)
+
+
+class JournalTtl(Base):  # type: ignore
+    """
+    Rules applied to journal entries and executed by drone.
+
+    name - Short name of rule
+    conditions:
+        - tags - List of tags to entries apply
+        - created_at - Action based on created_at entry timestamp
+        - updated_at - Action based on updated_at entry timestamp
+    action - delete, touch, add tag, etc.
+    """
+
+    __tablename__ = "journal_ttls"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    journal_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("journals.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name = Column(VARCHAR(256), nullable=False)
+    conditions = Column(JSONB, nullable=False)
+    action = Column(VARCHAR(256), nullable=False)
+    active = Column(Boolean, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=utcnow(), nullable=False
+    )
