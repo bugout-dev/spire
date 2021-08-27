@@ -671,8 +671,6 @@ def search_database(
         )
         query = query.filter(JournalEntry.id.in_(required_entries))
 
-    print(query)
-
     if search_query.forbidden_tags:
         # For the negation, we have to make a subquery which returns the IDs of all entries that
         # contain forbidden tags and then exclude entries whose IDs are in those results.
