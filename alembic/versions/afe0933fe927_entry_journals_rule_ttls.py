@@ -23,7 +23,7 @@ def upgrade():
     sa.Column('journal_id', postgresql.UUID(as_uuid=True), nullable=False),
     sa.Column('name', sa.VARCHAR(length=256), nullable=False),
     sa.Column('conditions', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-    sa.Column('action', sa.VARCHAR(length=256), nullable=False),
+    sa.Column('action', sa.VARCHAR(length=1024), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', statement_timestamp())"), nullable=False),
     sa.ForeignKeyConstraint(['journal_id'], ['journals.id'], name=op.f('fk_journal_ttls_journal_id_journals'), ondelete='CASCADE'),

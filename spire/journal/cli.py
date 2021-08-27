@@ -11,7 +11,7 @@ from . import actions
 from . import data
 from . import search
 from ..db import SessionLocal
-from .models import Journal, JournalPermissions, HolderType, JournalTtl
+from .models import Journal, JournalPermissions, HolderType, JournalTTL
 from ..utils.confparse import scope_conf
 from ..utils.settings import DEFAULT_JOURNALS_ES_INDEX
 from ..es import yield_es_client_from_env_ctx
@@ -167,15 +167,15 @@ def journal_rules_list_handler(args: argparse.Namespace) -> None:
     """
     db_session = SessionLocal()
     try:
-        query = db_session.query(JournalTtl)
+        query = db_session.query(JournalTTL)
         if args.journal is not None:
-            query = query.filter(JournalTtl.journal_id == args.journal)
+            query = query.filter(JournalTTL.journal_id == args.journal)
 
         rules = query.all()
         print(
-            data.JournalTtlRulesListResponse(
+            data.JournalTTLRulesListResponse(
                 rules=[
-                    data.JournalTtlRuleResponse(
+                    data.JournalTTLRuleResponse(
                         id=rule.id,
                         journal_id=rule.journal_id,
                         name=rule.name,
@@ -199,7 +199,7 @@ def journal_rules_add_handler(args: argparse.Namespace) -> None:
     db_session = SessionLocal()
     try:
         latest_rule_id = (
-            db_session.query(JournalTtl.id)
+            db_session.query(JournalTTL.id)
             .order_by(text("id desc"))
             .limit(1)
             .one_or_none()
@@ -209,7 +209,7 @@ def journal_rules_add_handler(args: argparse.Namespace) -> None:
         else:
             latest_rule_id = latest_rule_id[0]
 
-        rule = JournalTtl(
+        rule = JournalTTL(
             id=latest_rule_id + 1,
             journal_id=args.journal,
             name=args.name,
@@ -221,7 +221,7 @@ def journal_rules_add_handler(args: argparse.Namespace) -> None:
         db_session.commit()
 
         print(
-            data.JournalTtlRuleResponse(
+            data.JournalTTLRuleResponse(
                 id=rule.id,
                 journal_id=rule.journal_id,
                 name=rule.name,
@@ -241,13 +241,13 @@ def journal_rules_toggle_handler(args: argparse.Namespace) -> None:
     """
     db_session = SessionLocal()
     try:
-        query = db_session.query(JournalTtl).filter(JournalTtl.id == args.id)
+        query = db_session.query(JournalTTL).filter(JournalTTL.id == args.id)
         rule = query.one()
-        query.update({JournalTtl.active: args.active})
+        query.update({JournalTTL.active: args.active})
         db_session.commit()
 
         print(
-            data.JournalTtlRuleResponse(
+            data.JournalTTLRuleResponse(
                 id=rule.id,
                 journal_id=rule.journal_id,
                 name=rule.name,
@@ -267,11 +267,11 @@ def journal_rules_delete_handler(args: argparse.Namespace) -> None:
     """
     db_session = SessionLocal()
     try:
-        rule = db_session.query(JournalTtl).filter(JournalTtl.id == args.id).one()
+        rule = db_session.query(JournalTTL).filter(JournalTTL.id == args.id).one()
         db_session.delete(rule)
         db_session.commit()
         print(
-            data.JournalTtlRuleResponse(
+            data.JournalTTLRuleResponse(
                 id=rule.id,
                 journal_id=rule.journal_id,
                 name=rule.name,

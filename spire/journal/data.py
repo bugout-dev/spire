@@ -265,7 +265,7 @@ class ContextSpec(BaseModel):
     context_url: Optional[str] = None
 
 
-class JournalTtlRuleResponse(BaseModel):
+class JournalTTLRuleResponse(BaseModel):
     id: int
     journal_id: uuid.UUID
     name: str
@@ -275,5 +275,5 @@ class JournalTtlRuleResponse(BaseModel):
     created_at: datetime
 
 
-class JournalTtlRulesListResponse(BaseModel):
-    rules: List[JournalTtlRuleResponse] = Field(default_factory=list)
+class JournalTTLRulesListResponse(BaseModel):
+    rules: List[JournalTTLRuleResponse] = Field(default_factory=list)

@@ -209,7 +209,7 @@ class SpireOAuthScopes(Base):  # type: ignore
     description = Column(String, nullable=False)
 
 
-class JournalTtl(Base):  # type: ignore
+class JournalTTL(Base):  # type: ignore
     """
     Rules applied to journal entries and executed by drone.
 
@@ -231,7 +231,7 @@ class JournalTtl(Base):  # type: ignore
     )
     name = Column(VARCHAR(256), nullable=False)
     conditions = Column(JSONB, nullable=False)
-    action = Column(VARCHAR(256), nullable=False)
+    action = Column(VARCHAR(1024), nullable=False)
     active = Column(Boolean, nullable=False)
     created_at = Column(
         DateTime(timezone=True), server_default=utcnow(), nullable=False
