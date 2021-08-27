@@ -14,7 +14,7 @@ from dateutil.parser import parse as parse_datetime
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, not_
 from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.orm import Session, Query
 
@@ -652,14 +652,19 @@ def search_database(
 
     if search_query.forbidden_tags:
         tags_filter.append(
-            ~db_session.query(JournalEntryTag)
-            .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
-            .filter(
-                or_(
-                    *[JournalEntryTag.tag == tag for tag in search_query.forbidden_tags]
+            not_(
+                db_session.query(JournalEntryTag)
+                .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+                .filter(
+                    or_(
+                        *[
+                            JournalEntryTag.tag == tag
+                            for tag in search_query.forbidden_tags
+                        ]
+                    )
                 )
+                .exists()
             )
-            .exists()
         )
 
     if search_query.optional_tags:
