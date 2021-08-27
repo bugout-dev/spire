@@ -645,6 +645,8 @@ def search_database(
     for working with tag intersection
     we use exists clause with AND conditions
     it's works correct but has a certain cost for required_tags number
+
+    Disscation about changes https://github.com/bugout-dev/spire/pull/15
     """
     if search_query.required_tags:
         tags_filter.extend(
