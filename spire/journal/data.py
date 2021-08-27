@@ -49,6 +49,10 @@ class StatsTypes(Enum):
     client = "client"
 
 
+class RuleActions(Enum):
+    remove = "remove"
+
+
 class CreateJournalAPIRequest(BaseModel):
     # group_id is Optional to have possibility send null via update update_journal()
     name: str
@@ -265,6 +269,20 @@ class ContextSpec(BaseModel):
     context_type: Optional[str] = None
     context_id: Optional[str] = None
     context_url: Optional[str] = None
+
+
+class JournalTTLRuleResponse(BaseModel):
+    id: int
+    journal_id: uuid.UUID
+    name: str
+    conditions: Dict[str, Any]
+    action: RuleActions
+    active: bool
+    created_at: datetime
+
+
+class JournalTTLRulesListResponse(BaseModel):
+    rules: List[JournalTTLRuleResponse] = Field(default_factory=list)
 
 
 class DeletingQuery(BaseModel):
