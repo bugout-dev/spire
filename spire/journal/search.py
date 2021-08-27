@@ -641,7 +641,7 @@ def search_database(
 
     """
     Because we can't do correct join with tags table 
-    and request joined table intersection of the tags
+    and request from joined table intersection of the tags
     for working with tag intersection
     we use exists clause with AND conditions
     it's works correct but has a certain cost for required_tags number
