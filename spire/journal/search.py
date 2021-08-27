@@ -650,17 +650,26 @@ def search_database(
             ]
         )
 
+    if search_query.forbidden_tags:
+        tags_filter.append(
+            ~db_session.query(JournalEntryTag)
+            .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+            .filter(
+                or_(
+                    *[JournalEntryTag.tag == tag for tag in search_query.forbidden_tags]
+                )
+            )
+            .exists()
+        )
+
     if search_query.optional_tags:
         tags_filter.append(
-            or_(
-                *[
-                    db_session.query(JournalEntryTag)
-                    .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
-                    .filter(JournalEntryTag.tag == tag)
-                    .exists()
-                    for tag in search_query.optional_tags
-                ]
+            db_session.query(JournalEntryTag)
+            .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+            .filter(
+                or_(*[JournalEntryTag.tag == tag for tag in search_query.optional_tags])
             )
+            .exists()
         )
 
     if tags_filter:
@@ -671,20 +680,6 @@ def search_database(
         )
         query = query.filter(JournalEntry.id.in_(required_entries))
 
-    if search_query.forbidden_tags:
-        # For the negation, we have to make a subquery which returns the IDs of all entries that
-        # contain forbidden tags and then exclude entries whose IDs are in those results.
-        forbidden_entries = (
-            db_session.query(JournalEntry.id)
-            .filter(JournalEntry.journal_id == journal_id)
-            .join(
-                JournalEntryTag,
-                JournalEntry.id == JournalEntryTag.journal_entry_id,
-                isouter=True,
-            )
-            .filter(JournalEntryTag.tag.in_(search_query.forbidden_tags))
-        )
-        query = query.filter(JournalEntry.id.notin_(forbidden_entries))
     if search_query.context_type is not None:
         query = query.filter(JournalEntry.context_type == search_query.context_type)
     if search_query.context_id is not None:
