@@ -639,6 +639,13 @@ def search_database(
     # or_() -> BooleanClauseList
     tags_filter: List[Union[BooleanClauseList, List[Query]]] = []
 
+    """
+    Because we can't do correct join with tags table 
+    and request joined table intersection of the tags
+    for working with tag intersection
+    we use exists clause with AND conditions
+    it's works correct but has a certain cost for required_tags number
+    """
     if search_query.required_tags:
         tags_filter.extend(
             [
