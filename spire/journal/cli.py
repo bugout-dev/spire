@@ -235,7 +235,7 @@ def journal_rules_add_handler(args: argparse.Namespace) -> None:
         db_session.close()
 
 
-def journal_rules_switch_handler(args: argparse.Namespace) -> None:
+def journal_rules_toggle_handler(args: argparse.Namespace) -> None:
     """
     Mark rule as active or incactive.
     """
@@ -392,14 +392,14 @@ def main() -> None:
         "--active", action="store_true", help="Provide to activate rule"
     )
     parser_rules_add.set_defaults(func=journal_rules_add_handler)
-    parser_rules_switch = subcommands_rules.add_parser(
-        "switch", description="Switch active rule with provided ID"
+    parser_rules_toggle = subcommands_rules.add_parser(
+        "toggle", description="Toggle active rule with provided ID"
     )
-    parser_rules_switch.add_argument("-i", "--id", required=True, help="Rule ID")
-    parser_rules_switch.add_argument(
+    parser_rules_toggle.add_argument("-i", "--id", required=True, help="Rule ID")
+    parser_rules_toggle.add_argument(
         "--active", action="store_true", help="Provide to activate rule"
     )
-    parser_rules_switch.set_defaults(func=journal_rules_switch_handler)
+    parser_rules_toggle.set_defaults(func=journal_rules_toggle_handler)
     parser_rules_delete = subcommands_rules.add_parser(
         "delete", description="Delete rule with provided ID"
     )
