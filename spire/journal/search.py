@@ -677,7 +677,7 @@ def search_database(
             db_session.query(JournalEntry.id)
             .filter(JournalEntry.journal_id == journal_id)
             .filter(and_(*tags_filter))
-        )
+        ).distinct()
         query = query.filter(JournalEntry.id.in_(required_entries))
 
     if search_query.context_type is not None:
