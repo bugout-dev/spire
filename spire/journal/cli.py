@@ -167,7 +167,12 @@ def journal_rules_list_handler(args: argparse.Namespace) -> None:
     """
     db_session = SessionLocal()
     try:
-        query = db_session.query(JournalTTL)
+        query = (
+            db_session.query(JournalTTL)
+            .order_by(JournalTTL.id)
+            .offset(args.offset - 1 if args.offset != 0 else args.offset)
+            .limit(args.limit)
+        )
         if args.journal is not None:
             query = query.filter(JournalTTL.journal_id == args.journal)
 
@@ -370,6 +375,20 @@ def main() -> None:
         "list", description="List all rules for provided journal"
     )
     parser_rules_list.add_argument("-j", "--journal", help="Journal ID")
+    parser_rules_list.add_argument(
+        "-o",
+        "--offset",
+        type=int,
+        default=0,
+        help="Offset for output result, default is 0",
+    )
+    parser_rules_list.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=10,
+        help="Limit of output result, default is 10",
+    )
     parser_rules_list.set_defaults(func=journal_rules_list_handler)
     parser_rules_add = subcommands_rules.add_parser(
         "add", description="Add rule for provided journal"
