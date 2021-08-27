@@ -15,7 +15,8 @@ import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import BooleanClauseList
+from sqlalchemy.orm import Session, Query
 
 from . import actions
 from .data import JournalSpec, JournalEntryResponse
@@ -635,45 +636,42 @@ def search_database(
     if search_query.context_url is not None:
         query = query.filter(JournalEntry.context_url == search_query.context_url)
 
+    # or_() -> BooleanClauseList
+    tags_filter: List[Union[BooleanClauseList, List[Query]]] = []
+
     if search_query.required_tags:
-        # We need to return ALL tags on entries that make the cut. So we use a subquery to filter
-        # out inadmissible tags but then use the top-level join to return all tags for admissible
-        # entries.
+        tags_filter.extend(
+            [
+                db_session.query(JournalEntryTag)
+                .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+                .filter(JournalEntryTag.tag == tag)
+                .exists()
+                for tag in search_query.required_tags
+            ]
+        )
+
+    if search_query.optional_tags:
+        tags_filter.append(
+            or_(
+                *[
+                    db_session.query(JournalEntryTag)
+                    .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+                    .filter(JournalEntryTag.tag == tag)
+                    .exists()
+                    for tag in search_query.optional_tags
+                ]
+            )
+        )
+
+    if tags_filter:
         required_entries = (
             db_session.query(JournalEntry.id)
             .filter(JournalEntry.journal_id == journal_id)
-            .filter(
-                and_(
-                    *[
-                        db_session.query(JournalEntryTag)
-                        .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
-                        .filter(JournalEntryTag.tag == tag)
-                        .exists()
-                        for tag in search_query.required_tags
-                    ]
-                )
-            )
+            .filter(and_(*tags_filter))
         )
         query = query.filter(JournalEntry.id.in_(required_entries))
 
-    if search_query.optional_tags:
-
-        optionals_entries = (
-            db_session.query(JournalEntry.id)
-            .filter(JournalEntry.journal_id == journal_id)
-            .filter(
-                or_(
-                    *[
-                        db_session.query(JournalEntryTag)
-                        .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
-                        .filter(JournalEntryTag.tag == tag)
-                        .exists()
-                        for tag in search_query.optional_tags
-                    ]
-                )
-            )
-        )
-        query = query.filter(JournalEntry.id.in_(optionals_entries))
+    print(query)
 
     if search_query.forbidden_tags:
         # For the negation, we have to make a subquery which returns the IDs of all entries that
