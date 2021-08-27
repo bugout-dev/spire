@@ -673,12 +673,7 @@ def search_database(
         )
 
     if tags_filter:
-        required_entries = (
-            db_session.query(JournalEntry.id)
-            .filter(JournalEntry.journal_id == journal_id)
-            .filter(and_(*tags_filter))
-        ).distinct()
-        query = query.filter(JournalEntry.id.in_(required_entries))
+        query = query.filter(and_(*tags_filter))
 
     if search_query.context_type is not None:
         query = query.filter(JournalEntry.context_type == search_query.context_type)
