@@ -35,6 +35,8 @@ from .data import (
     DeleteJournalEntriesByTagsAPIRequest,
     DronesStatisticsResponce,
     JournalEntriesByTagsDeletionResponse,
+    JournalEntriesBySearchDeletionResponse,
+    DeletingQuery,
     JournalSpec,
     JournalResponse,
     JournalEntryResponse,
@@ -1523,6 +1525,99 @@ async def delete_entries(
                 f"({journal_id}) for user ({request.state.user_id})"
             )
     return journal_entries_response
+
+
+@app.delete(
+    "/{journal_id}/bulk_search",
+    tags=["entries"],
+    response_model=JournalEntriesBySearchDeletionResponse,
+)
+async def delete_entries_by_search(
+    journal_id: UUID,
+    income_search_query: DeletingQuery,
+    request: Request,
+    db_session: Session = Depends(db.yield_connection_from_env),
+    es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
+) -> JournalEntriesBySearchDeletionResponse:
+    """
+    Deletes a journal entries
+    """
+    ensure_journal_permission(
+        db_session,
+        request.state.user_id,
+        request.state.user_group_id_list,
+        journal_id,
+        {JournalEntryScopes.DELETE},
+    )
+    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
+
+    search_query = income_search_query.search_query
+
+    try:
+        journal = await actions.find_journal(
+            db_session=db_session,
+            journal_spec=journal_spec,
+            user_group_id_list=request.state.user_group_id_list,
+        )
+    except actions.JournalNotFound:
+        logger.error(
+            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
+        )
+        raise HTTPException(status_code=404)
+    except Exception as e:
+        logger.error(f"Error retrieving journal: {str(e)}")
+        raise HTTPException(status_code=500)
+
+    if journal.search_index is not None:
+        raise HTTPException(status_code=403, detail="Not allowed for indexed journals.")
+
+    limit = 100
+    offset = 0
+
+    normalized_query = search.normalized_search_query(
+        search_query, filters=[], strict_filter_mode=False
+    )
+
+    deleted_count = 0
+
+    total_results, rows = search.search_database(
+        db_session, journal_id, normalized_query, 10, 0
+    )
+
+    for _ in range(1 + total_results // limit):
+
+        total_results, rows = search.search_database(
+            db_session, journal_id, normalized_query, limit, offset
+        )
+
+        entries_ids = [entry.id for entry in rows]
+
+        try:
+            journal_entries_response = await actions.delete_journal_entries(
+                db_session,
+                journal_spec,
+                entries_ids,
+                user_group_id_list=request.state.user_group_id_list,
+            )
+        except actions.JournalNotFound:
+            logger.error(
+                f"Journal not found with ID={journal_id} for user={request.state.user_id}"
+            )
+            raise HTTPException(status_code=404, detail="Journal not found")
+        except actions.EntryNotFound:
+            logger.error(
+                f"Entries not found with entries ids=[{','.join([str(id) for id in entries_ids])}] in journal with ID={journal_id}"
+            )
+            raise HTTPException(status_code=404, detail="Entry not found")
+        except Exception as e:
+            logger.error(f"Error deleting journal entries: {str(e)}")
+            raise HTTPException(status_code=500)
+
+        deleted_count += len(rows)
+
+    return JournalEntriesBySearchDeletionResponse(
+        journal_id=journal_id, num_deleted=deleted_count, search_query=search_query
+    )
 
 
 @app.delete(

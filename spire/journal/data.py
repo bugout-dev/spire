@@ -191,6 +191,12 @@ class JournalEntriesByTagsDeletionResponse(BaseModel):
     tags: List[str] = Field(default_factory=list)
 
 
+class JournalEntriesBySearchDeletionResponse(BaseModel):
+    journal_id: uuid.UUID
+    num_deleted: int
+    search_query: str
+
+
 class JournalSearchResult(BaseModel):
     entry_url: str
     content_url: str
@@ -259,3 +265,7 @@ class ContextSpec(BaseModel):
     context_type: Optional[str] = None
     context_id: Optional[str] = None
     context_url: Optional[str] = None
+
+
+class DeletingQuery(BaseModel):
+    search_query: str
