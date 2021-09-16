@@ -14,8 +14,9 @@ from dateutil.parser import parse as parse_datetime
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, not_
+from sqlalchemy.sql.elements import BooleanClauseList
+from sqlalchemy.orm import Session, Query
 
 from . import actions
 from .data import JournalSpec, JournalEntryResponse
@@ -635,40 +636,59 @@ def search_database(
     if search_query.context_url is not None:
         query = query.filter(JournalEntry.context_url == search_query.context_url)
 
+    # or_() -> BooleanClauseList
+    tags_filter: List[Union[BooleanClauseList, List[Query]]] = []
+
+    """
+    Because we can't do correct join with tags table 
+    and request from joined table intersection of the tags
+    for working with tag intersection
+    we use exists clause with AND conditions
+    it's works correct but has a certain cost for required_tags number
+
+    Disscation about changes https://github.com/bugout-dev/spire/pull/15
+    """
     if search_query.required_tags:
-        # We need to return ALL tags on entries that make the cut. So we use a subquery to filter
-        # out inadmissible tags but then use the top-level join to return all tags for admissible
-        # entries.
-        admissible_entries = (
-            db_session.query(JournalEntry.id)
-            .filter(JournalEntry.journal_id == journal_id)
-            .filter(
-                and_(
-                    *[
-                        db_session.query(JournalEntryTag)
-                        .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
-                        .filter(JournalEntryTag.tag == tag)
-                        .exists()
-                        for tag in search_query.required_tags
-                    ]
-                )
-            )
+        tags_filter.extend(
+            [
+                db_session.query(JournalEntryTag)
+                .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+                .filter(JournalEntryTag.tag == tag)
+                .exists()
+                for tag in search_query.required_tags
+            ]
         )
-        query = query.filter(JournalEntry.id.in_(admissible_entries))
+
     if search_query.forbidden_tags:
-        # For the negation, we have to make a subquery which returns the IDs of all entries that
-        # contain forbidden tags and then exclude entries whose IDs are in those results.
-        forbidden_entries = (
-            db_session.query(JournalEntry.id)
-            .filter(JournalEntry.journal_id == journal_id)
-            .join(
-                JournalEntryTag,
-                JournalEntry.id == JournalEntryTag.journal_entry_id,
-                isouter=True,
+        tags_filter.append(
+            not_(
+                db_session.query(JournalEntryTag)
+                .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+                .filter(
+                    or_(
+                        *[
+                            JournalEntryTag.tag == tag
+                            for tag in search_query.forbidden_tags
+                        ]
+                    )
+                )
+                .exists()
             )
-            .filter(JournalEntryTag.tag.in_(search_query.forbidden_tags))
         )
-        query = query.filter(JournalEntry.id.notin_(forbidden_entries))
+
+    if search_query.optional_tags:
+        tags_filter.append(
+            db_session.query(JournalEntryTag)
+            .filter(JournalEntryTag.journal_entry_id == JournalEntry.id)
+            .filter(
+                or_(*[JournalEntryTag.tag == tag for tag in search_query.optional_tags])
+            )
+            .exists()
+        )
+
+    if tags_filter:
+        query = query.filter(and_(*tags_filter))
+
     if search_query.context_type is not None:
         query = query.filter(JournalEntry.context_type == search_query.context_type)
     if search_query.context_id is not None:

@@ -44,6 +44,7 @@ from spire.journal.models import (
     JournalEntry,
     JournalPermissions,
     SpireOAuthScopes,
+    JournalTTL,
 )
 from spire.preferences.models import DefaultJournal
 from spire.slack.models import (
@@ -79,6 +80,7 @@ def include_symbol(tablename, schema):
         JournalEntryTag.__tablename__,
         JournalPermissions.__tablename__,
         SpireOAuthScopes.__tablename__,
+        JournalTTL.__tablename__,
         GitHubOAuthEvent.__tablename__,
         GitHubBugoutUser.__tablename__,
         GitHubRepo.__tablename__,

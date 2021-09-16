@@ -24,7 +24,7 @@ from .data import (
     JournalSpec,
     JournalStatisticsSpecs,
     CreateJournalEntryRequest,
-    CreateJournalEntryListRequest,
+    JournalEntryListContent,
     CreateJournalEntryTagRequest,
     JournalSearchResultsResponse,
     JournalStatisticsResponse,
@@ -498,67 +498,76 @@ async def create_journal_entry(
 
 async def create_journal_entries_pack(
     db_session: Session,
-    entries_pack_request: CreateJournalEntryListRequest,
-    user_group_id_list: list = None,
+    journal_id: UUID,
+    entries_pack_request: JournalEntryListContent,
 ) -> ListJournalEntriesResponse:
     """
     Bulk pack of entries to database.
     """
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=entries_pack_request.journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     entries_response = ListJournalEntriesResponse(entries=[])
-    entries_pack = []
-    entries_tags_pack = []
-    for entry_request in entries_pack_request.entries:
-        entry_id = uuid4()
-        entries_pack.append(
-            JournalEntry(
-                id=entry_id,
-                journal_id=journal.id,
-                title=entry_request.title,
-                content=entry_request.content,
-                context_id=entry_request.context_id,
-                context_url=entry_request.context_url,
-                context_type=entry_request.context_type,
+
+    chunk_size = 50
+    chunks = [
+        entries_pack_request.entries[i : i + chunk_size]
+        for i in range(0, len(entries_pack_request.entries), chunk_size)
+    ]
+    logger.info(
+        f"Entries pack splitted to {len(chunks)} number of chunks for journal {str(journal_id)}"
+    )
+    for chunk in chunks:
+        entries_pack = []
+        entries_tags_pack = []
+
+        for entry_request in chunk:
+            entry_id = uuid4()
+            entries_pack.append(
+                JournalEntry(
+                    id=entry_id,
+                    journal_id=journal_id,
+                    title=entry_request.title,
+                    content=entry_request.content,
+                    context_id=entry_request.context_id,
+                    context_url=entry_request.context_url,
+                    context_type=entry_request.context_type,
+                )
             )
-        )
-        if entry_request.tags is not None:
-            entries_tags_pack += [
-                JournalEntryTag(journal_entry_id=entry_id, tag=tag)
-                for tag in entry_request.tags
-                if tag
-            ]
+            if entry_request.tags is not None:
+                entries_tags_pack += [
+                    JournalEntryTag(journal_entry_id=entry_id, tag=tag)
+                    for tag in entry_request.tags
+                    if tag
+                ]
 
-        entries_response.entries.append(
-            JournalEntryResponse(
-                id=entry_id,
-                title=entry_request.title,
-                content=entry_request.content,
-                tags=entry_request.tags if entry_request.tags is not None else [],
-                context_url=entry_request.context_url,
-                context_type=entry_request.context_type,
-                context_id=entry_request.context_id,
+            entries_response.entries.append(
+                JournalEntryResponse(
+                    id=entry_id,
+                    title=entry_request.title,
+                    content=entry_request.content,
+                    tags=entry_request.tags if entry_request.tags is not None else [],
+                    context_url=entry_request.context_url,
+                    context_type=entry_request.context_type,
+                    context_id=entry_request.context_id,
+                )
             )
-        )
 
-    db_session.bulk_save_objects(entries_pack)
-    db_session.commit()
+        db_session.bulk_save_objects(entries_pack)
+        db_session.commit()
+        db_session.bulk_save_objects(entries_tags_pack)
+        db_session.commit()
 
-    db_session.bulk_save_objects(entries_tags_pack)
-    db_session.commit()
-
-    # Append created_at and updated_at from fresh rows from database
-    # TODO(kompotkot): Datetime now not returned from bult_save_objects()
-    for entry in entries_response.entries:
-        entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
-            0
-        ].created_at
-        entry.updated_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
-            0
-        ].updated_at
+        # Append created_at and updated_at from fresh rows from database
+        # TODO(kompotkot): Datetime now not returned from bult_save_objects()
+        for entry in [
+            e1
+            for e1 in entries_response.entries
+            if e1.id in [e2.id for e2 in entries_pack]
+        ]:
+            entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
+                0
+            ].created_at
+            entry.updated_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
+                0
+            ].updated_at
 
     return entries_response
 
