@@ -463,14 +463,6 @@ async def create_journal_entry(
         user_group_id_list=user_group_id_list,
     )
 
-    if entry_request.created_at:
-        entry_request.tags.append(f"reported_at:{datetime.utcnow()}")
-        if entry_request.created_at > datetime.utcnow():
-            entry_request.created_at = datetime.utcnow()
-
-    if entry_request.updated_at and entry_request.updated_at > datetime.utcnow():
-        entry_request.updated_at = datetime.utcnow()
-
     entry = JournalEntry(
         journal_id=journal.id,
         title=entry_request.title,
@@ -479,7 +471,6 @@ async def create_journal_entry(
         context_url=entry_request.context_url,
         context_type=entry_request.context_type,
         created_at=entry_request.created_at,
-        updated_at=entry_request.updated_at,
     )
     db_session.add(entry)
     db_session.commit()
@@ -512,7 +503,7 @@ async def create_journal_entries_pack(
         for i in range(0, len(entries_pack_request.entries), chunk_size)
     ]
     logger.info(
-        f"Entries pack splitted to {len(chunks)} number of chunks for journal {str(journal_id)}"
+        f"Entries pack split into to {len(chunks)} chunks for journal {str(journal_id)}"
     )
     for chunk in chunks:
         entries_pack = []
@@ -529,6 +520,7 @@ async def create_journal_entries_pack(
                     context_id=entry_request.context_id,
                     context_url=entry_request.context_url,
                     context_type=entry_request.context_type,
+                    created_at=entry_request.created_at,
                 )
             )
             if entry_request.tags is not None:
@@ -547,6 +539,7 @@ async def create_journal_entries_pack(
                     context_url=entry_request.context_url,
                     context_type=entry_request.context_type,
                     context_id=entry_request.context_id,
+                    created_at=entry_request.created_at,
                 )
             )
 
@@ -722,7 +715,11 @@ def _query_entries_by_tags_intersection(
 
 
 async def hard_delete_by_tags(
-    db_session: Session, journal_id: str, tags: List[str], limit: int, offset: int,
+    db_session: Session,
+    journal_id: str,
+    tags: List[str],
+    limit: int,
+    offset: int,
 ) -> List[UUID]:
     """
     Remove entries from database by tags intersection(AND condition)

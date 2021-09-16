@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Any, cast, Dict, List, Optional, Set, Union
 from uuid import UUID
@@ -183,10 +183,10 @@ async def get_scopes(
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> ListScopesResponse:
     """
-    Retrieves the list of possible permissions that can be assigned 
+    Retrieves the list of possible permissions that can be assigned
     to holders (user or group) for journal.
 
-    - **api** (string): Resource applicable to, e.g. "journals" 
+    - **api** (string): Resource applicable to, e.g. "journals"
     \f
     :param create_request: Journal permissions request.
     """
@@ -274,7 +274,7 @@ async def get_journal_permissions_handler(
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> JournalPermissionsResponse:
     """
-    If requester has JournalScopes.READ permission on a journal, 
+    If requester has JournalScopes.READ permission on a journal,
     they can see all permission holders for that journal.
 
     - **journal_id** (uuid): Journal ID to extract permissions from
@@ -514,7 +514,7 @@ async def get_journal(
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> JournalResponse:
     """
-    Retrieves the journal with the given ID (assuming the journal was created 
+    Retrieves the journal with the given ID (assuming the journal was created
     by the authenticated user).
 
     :param journal_id: Journal ID to extract permissions from
@@ -561,7 +561,7 @@ async def update_journal(
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> JournalResponse:
     """
-    Updates the given journal using the parameters in the update_request 
+    Updates the given journal using the parameters in the update_request
     assuming the journal was created by the authenticated user.
 
     :param journal_id: Journal ID to extract permissions from
@@ -881,9 +881,12 @@ async def create_journal_entry(
         context_type=entry_request.context_type,
         context_id=entry_request.context_id,
         context_url=entry_request.context_url,
-        created_at=entry_request.created_at,
-        updated_at=entry_request.updated_at,
     )
+
+    if entry_request.created_at is not None:
+        created_at_utc = datetime.astimezone(entry_request.created_at, tz=timezone.utc)
+        created_at = created_at_utc.replace(tzinfo=None)
+        creation_request.created_at = created_at
 
     try:
         journal = await actions.find_journal(
