@@ -715,11 +715,7 @@ def _query_entries_by_tags_intersection(
 
 
 async def hard_delete_by_tags(
-    db_session: Session,
-    journal_id: str,
-    tags: List[str],
-    limit: int,
-    offset: int,
+    db_session: Session, journal_id: str, tags: List[str], limit: int, offset: int,
 ) -> List[UUID]:
     """
     Remove entries from database by tags intersection(AND condition)
