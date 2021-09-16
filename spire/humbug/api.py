@@ -435,6 +435,7 @@ async def create_report(
             - **title** (string): Entry title
             - **content** (string): Entry content
             - **tags** (list): Entry tags
+            - **created_at** (optional datetime): Time at which report should be marked as created
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
@@ -455,9 +456,7 @@ async def create_report(
             redis_client.rpush(
                 REDIS_REPORTS_QUEUE,
                 HumbugCreateReportTask(
-                    report=report,
-                    bugout_token=restricted_token,
-                    reported_at=datetime.utcnow(),
+                    report=report, bugout_token=restricted_token,
                 ).json(),
             )
         except Exception as err:
@@ -515,9 +514,7 @@ async def bulk_create_reports(
         for report in reports_list:
             reports_pack.append(
                 HumbugCreateReportTask(
-                    report=report,
-                    bugout_token=restricted_token,
-                    reported_at=datetime.utcnow(),
+                    report=report, bugout_token=restricted_token,
                 ).json()
             )
 
