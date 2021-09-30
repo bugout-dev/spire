@@ -33,8 +33,12 @@ set -eu
 
 echo
 echo
+echo "Updating pip and setuptools"
+"${PIP}" install -U pip setuptools
+
+echo
+echo
 echo "Updating Python dependencies"
-"${PIP}" install --upgrade pip
 "${PIP}" install -r "${APP_DIR}/requirements.txt"
 
 echo

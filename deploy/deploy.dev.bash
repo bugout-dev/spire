@@ -24,6 +24,11 @@ set -eu
 
 echo
 echo
+echo "Updating pip and setuptools"
+"${PIP}" install -U pip setuptools
+
+echo
+echo
 read -p "Run migration? [y/n]: " migration_answer
 case "$migration_answer" in
     [yY1] ) 

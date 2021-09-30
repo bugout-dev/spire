@@ -36,7 +36,7 @@ setup(
     install_requires=[
         "alembic",
         "boto3",
-        "brood @ git+ssh://git@github.com/bugout-dev/brood.git@131490c60a0162db266e452512efc5ced9d2f0a1",
+        "brood @ git+ssh://git@github.com/bugout-dev/brood.git@a1bb1ab20f14540c16e2c26bded36b1b23699004",
         "bugout",
         "bugout-locust",
         "elasticsearch",
