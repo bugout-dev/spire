@@ -1,5 +1,5 @@
 import logging
-from typing import cast, List
+from typing import cast, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -48,6 +48,18 @@ class HumbugTokenNotFound(Exception):
 
 
 public_user_permission_at_journal = ["journals.read", "journals.entries.create"]
+
+
+def process_ip_headers(ip_header_raw: Optional[str] = None) -> List[str]:
+    """
+    Convert string to list of unique IPs.
+    """
+    if ip_header_raw is None:
+        return []
+
+    ip_headers = ip_header_raw.replace(" ", "").split(",")
+    ip_headers = list(set(ip_headers))
+    return ip_headers
 
 
 def generate_humbug_dependencies(

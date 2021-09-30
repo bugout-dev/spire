@@ -439,6 +439,10 @@ async def create_report(
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
+    client_ips = actions.process_ip_headers(
+        request.headers.get("x-forwarded-for", None)
+    )
+    report.tags.extend([f"client_ip:{i}" for i in client_ips])
 
     try:
         journal_id = await actions.get_journal_id_by_restricted_token(
