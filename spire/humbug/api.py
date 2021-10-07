@@ -316,6 +316,7 @@ async def get_restricted_token_handler(
                 restricted_token_id=token.restricted_token_id,
                 app_name=token.app_name,
                 app_version=token.app_version,
+                store_ip=token.store_ip,
             )
             for token in humbug_tokens
         ],
@@ -331,6 +332,7 @@ async def create_restricted_token_handler(
     humbug_id: UUID = Path(...),
     app_name: str = Form(...),
     app_version: str = Form(...),
+    store_ip: bool = Form(False),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> HumbugTokenListResponse:
     """
@@ -351,6 +353,7 @@ async def create_restricted_token_handler(
             humbug_user=humbug_event.bugout_user,
             app_name=app_name,
             app_version=app_version,
+            store_ip=store_ip,
         )
 
     except actions.HumbugEventNotFound:
@@ -368,10 +371,69 @@ async def create_restricted_token_handler(
                 restricted_token_id=restricted_token.restricted_token_id,
                 app_name=restricted_token.app_name,
                 app_version=restricted_token.app_version,
+                store_ip=restricted_token.store_ip,
             )
         ],
     )
     return humbug_tokens_response
+
+
+@app.put("/{humbug_id}/tokens", tags=["tokens"], response_model=HumbugTokenResponse)
+async def update_restricted_token_handler(
+    request: Request,
+    humbug_id: UUID = Path(...),
+    restricted_token_id: UUID = Form(...),
+    app_name: str = Form(None),
+    app_version: str = Form(None),
+    store_ip: bool = Form(None),
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> HumbugTokenResponse:
+    """
+    Create new restricted token for integration.
+
+    - **humbug_id** (uuid): Specific integration ID
+    - **restricted_token_id** (uuid): Restricted token to update
+    - **app_name** (string): Application name
+    - **app_version** (string): Application version
+    - **store_ip** (boolean): Store client IP, default: False
+    """
+    user_group_id_list = request.state.user_group_id_list
+
+    try:
+        humbug_event = await actions.get_humbug_integration(
+            db_session, humbug_id=humbug_id, groups_ids=user_group_id_list
+        )
+        restricted_token = await actions.update_humbug_token(
+            db_session,
+            humbug_id=humbug_event.id,
+            restricted_token_id=restricted_token_id,
+            app_name=app_name,
+            app_version=app_version,
+            store_ip=store_ip,
+        )
+    except actions.TokenInvalidParameters:
+        raise HTTPException(
+            status_code=400,
+            detail="Token app_name, app_version or store_ip should be specified",
+        )
+    except actions.HumbugEventNotFound:
+        raise HTTPException(
+            status_code=404, detail="Humbug integration not found in database"
+        )
+    except actions.HumbugTokenNotFound:
+        raise HTTPException(
+            status_code=404, detail="Provided restricted token id not found"
+        )
+    except Exception as err:
+        logger.error(str(err))
+        raise HTTPException(status_code=500)
+
+    return HumbugTokenResponse(
+        restricted_token_id=restricted_token.restricted_token_id,
+        app_name=restricted_token.app_name,
+        app_version=restricted_token.app_version,
+        store_ip=restricted_token.store_ip,
+    )
 
 
 @app.delete(
@@ -414,6 +476,7 @@ async def delete_restricted_token_handler(
                 restricted_token_id=restricted_token.restricted_token_id,
                 app_name=restricted_token.app_name,
                 app_version=restricted_token.app_version,
+                store_ip=restricted_token.store_ip,
             )
         ],
     )
@@ -439,19 +502,21 @@ async def create_report(
         - **bugout_token** (UUID): Humbug token
     """
     restricted_token = request.state.token
-    client_ips = actions.process_ip_headers(
-        request.headers.get("x-forwarded-for", None)
-    )
-    report.tags.extend([f"client_ip:{i}" for i in client_ips])
 
     try:
-        journal_id = await actions.get_journal_id_by_restricted_token(
+        journal_id, store_ip = await actions.get_journal_id_by_restricted_token(
             db_session, restricted_token=restricted_token
         )
     except actions.HumbugEventNotFound:
         raise HTTPException(
             status_code=404, detail="Humbug integration not found in database"
         )
+
+    if store_ip:
+        client_ips = actions.process_ip_headers(
+            request.headers.get("x-forwarded-for", None)
+        )
+        report.tags.extend([f"client_ip:{i}" for i in client_ips])
 
     if not sync:
         try:
@@ -505,7 +570,7 @@ async def bulk_create_reports(
     restricted_token = request.state.token
 
     try:
-        journal_id = await actions.get_journal_id_by_restricted_token(
+        journal_id, _ = await actions.get_journal_id_by_restricted_token(
             db_session, restricted_token=restricted_token
         )
     except actions.HumbugEventNotFound:

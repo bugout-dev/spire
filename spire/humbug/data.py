@@ -35,6 +35,7 @@ class HumbugTokenResponse(BaseModel):
     restricted_token_id: UUID
     app_name: str
     app_version: str
+    store_ip: bool
 
 
 class HumbugTokenListResponse(BaseModel):
