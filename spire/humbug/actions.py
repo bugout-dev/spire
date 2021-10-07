@@ -1,5 +1,5 @@
 import logging
-from typing import cast, List
+from typing import cast, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -29,6 +29,13 @@ class JournalInvalidParameters(ValueError):
     """
 
 
+class TokenInvalidParameters(ValueError):
+    """
+    Raised when operations are applied to a token but invalid parameters are provided with which to
+    specify that token.
+    """
+
+
 class HumbugEventNotFound(Exception):
     """
     Raised on actions that involve integration which are not present in the database.
@@ -48,6 +55,18 @@ class HumbugTokenNotFound(Exception):
 
 
 public_user_permission_at_journal = ["journals.read", "journals.entries.create"]
+
+
+def process_ip_headers(ip_header_raw: Optional[str] = None) -> List[str]:
+    """
+    Convert string to list of unique IPs.
+    """
+    if ip_header_raw is None:
+        return []
+
+    ip_headers = ip_header_raw.replace(" ", "").split(",")
+    ip_headers = list(set(ip_headers))
+    return ip_headers
 
 
 def generate_humbug_dependencies(
@@ -230,6 +249,42 @@ async def get_humbug_integration(
     return humbug_event
 
 
+async def update_humbug_token(
+    db_session: Session,
+    humbug_id: UUID,
+    restricted_token_id: UUID,
+    app_name: Optional[str] = None,
+    app_version: Optional[str] = None,
+    store_ip: Optional[bool] = None,
+) -> HumbugBugoutUserToken:
+    """
+    Update humbug token params.
+    """
+    if app_name is None and app_version is None and store_ip is None:
+        raise TokenInvalidParameters(
+            "In order to update token, at least one of app_name, "
+            "app_version or store_ip must be specified"
+        )
+
+    query = db_session.query(HumbugBugoutUserToken).filter(
+        HumbugBugoutUserToken.event_id == humbug_id,
+        HumbugBugoutUserToken.restricted_token_id == restricted_token_id,
+    )
+    restricted_token = query.one_or_none()
+    if restricted_token is None:
+        raise HumbugTokenNotFound("Humbug token not found in database")
+
+    if app_name is not None:
+        query.update({HumbugBugoutUserToken.app_name: app_name})
+    if app_version is not None:
+        query.update({HumbugBugoutUserToken.app_version: app_version})
+    if store_ip is not None:
+        query.update({HumbugBugoutUserToken.store_ip: store_ip})
+    db_session.commit()
+
+    return restricted_token
+
+
 async def get_humbug_integrations(
     db_session: Session, groups_ids: List[UUID]
 ) -> List[HumbugEvent]:
@@ -330,6 +385,7 @@ async def create_humbug_token(
     humbug_user: HumbugBugoutUser,
     app_name: str,
     app_version: str,
+    store_ip: bool = False,
 ) -> HumbugBugoutUserToken:
     """
     Make API call to Brood and save to database restricted token.
@@ -346,6 +402,7 @@ async def create_humbug_token(
         user_id=humbug_user.user_id,
         app_name=app_name,
         app_version=app_version,
+        store_ip=store_ip,
     )
     db_session.add(new_humbug_token)
     db_session.commit()
@@ -355,7 +412,7 @@ async def create_humbug_token(
 
 async def delete_humbug_token(
     db_session: Session, humbug_event: HumbugEvent, restricted_token_id: UUID
-):
+) -> HumbugBugoutUserToken:
     query = db_session.query(HumbugBugoutUserToken).filter(
         HumbugBugoutUserToken.event_id == humbug_event,
         HumbugBugoutUserToken.restricted_token_id == restricted_token_id,
@@ -382,20 +439,20 @@ async def delete_humbug_token(
 
 async def get_journal_id_by_restricted_token(
     db_session: Session, restricted_token: UUID
-) -> UUID:
+) -> Tuple[UUID, bool]:
     """
     Return journal uuid by given restricted token
     """
-    journal_id = (
-        db_session.query(HumbugEvent.journal_id)
+    integration_data = (
+        db_session.query(HumbugEvent.journal_id, HumbugBugoutUserToken.store_ip)
         .join(HumbugBugoutUserToken, HumbugEvent.id == HumbugBugoutUserToken.event_id)
         .filter(HumbugBugoutUserToken.restricted_token_id == restricted_token)
         .one_or_none()
     )
-    if journal_id is None:
+    if integration_data is None:
         raise HumbugEventNotFound("Humbug integration not found in database")
 
-    return journal_id[0]
+    return integration_data[0], integration_data[1]
 
 
 async def push_pack_to_journals_api(

@@ -115,3 +115,4 @@ class HumbugBugoutUserToken(Base):  # type: ignore
     )
     app_name = Column(String, nullable=False)
     app_version = Column(String, nullable=False)
+    store_ip = Column(Boolean, default=False, nullable=False)
