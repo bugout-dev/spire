@@ -5,13 +5,10 @@ Synchronize tokens
 python -m spire.humbug.cli tokens synchronize
 """
 import argparse
-from datetime import datetime, timedelta, timezone
-from typing import cast, Dict, Optional
+from distutils.util import strtobool
+from typing import cast
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-
-from . import actions
 from .data import (
     HumbugIntegrationResponse,
     HumbugIntegrationListResponse,
@@ -272,6 +269,30 @@ def synchronize_humbug_restricted_token(args: argparse.Namespace) -> None:
         session.close()
 
 
+def update_humbug_restricted_token(args: argparse.Namespace) -> None:
+    session = SessionLocal()
+    try:
+        query = session.query(HumbugBugoutUserToken).filter(
+            HumbugBugoutUserToken.restricted_token_id == args.restricted_token_id
+        )
+        token = query.one_or_none()
+        if token is None:
+            print("Restricted token doesn't exist")
+            return
+        if args.app_name is not None:
+            query.update({HumbugBugoutUserToken.app_name: args.app_name})
+        if args.app_version is not None:
+            query.update({HumbugBugoutUserToken.app_version: args.app_version})
+        if args.store_ip is not None:
+            query.update(
+                {HumbugBugoutUserToken.store_ip: bool(strtobool(args.store_ip))}
+            )
+        session.commit()
+        print("Restricted token updated")
+    finally:
+        session.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Administrative actions for Bugout Humbug"
@@ -327,6 +348,22 @@ def main() -> None:
     )
     parser_tokens_get.add_argument("-i", "--id", help="Humbug event integration ID")
     parser_tokens_get.set_defaults(func=get_humbug_restricted_tokens)
+    parser_tokens_update = subcommands_tokens.add_parser(
+        "update", description="Update humbug restricted token"
+    )
+    parser_tokens_update.add_argument(
+        "-r", "--restricted_token_id", required=True, help="Restricted token ID"
+    )
+    parser_tokens_update.add_argument(
+        "-n", "--app_name", type=str, help="Restricted token app name"
+    )
+    parser_tokens_update.add_argument(
+        "-v", "--app_version", type=str, help="Restricted token app version"
+    )
+    parser_tokens_update.add_argument(
+        "-s", "--store_ip", choices=["True", "False"], help="Restricted token store ip"
+    )
+    parser_tokens_update.set_defaults(func=update_humbug_restricted_token)
     parser_tokens_synchronize = subcommands_tokens.add_parser(
         "synchronize", description="Synchronize humbug restricted tokens"
     )
