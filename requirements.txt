@@ -8,7 +8,7 @@ attrs==19.3.0
 black==19.10b0
 boto3==1.16.51
 botocore==1.19.51
--e git+ssh://git@github.com/bugout-dev/brood.git@131490c60a0162db266e452512efc5ced9d2f0a1#egg=brood
+-e git+https://git@github.com/bugout-dev/brood.git@d33bb91a8108d02d7509ef25541ff07e31e41680#egg=brood
 bugout==0.1.17
 bugout-locust==0.2.5
 cached-property==1.5.2
