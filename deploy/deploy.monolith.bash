@@ -27,14 +27,9 @@ set -eu
 
 echo
 echo
-echo "Uninstall Brood previous version"
-"${PIP}" uninstall -y brood
-
-echo
-echo
 echo "Updating Python dependencies"
 "${PIP}" install --upgrade pip
-"${PIP}" install -r "${APP_DIR}/requirements.txt"
+"${PIP}" install --exists-action i -r "${APP_DIR}/requirements.txt"
 
 echo
 echo
