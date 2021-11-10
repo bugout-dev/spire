@@ -2,6 +2,17 @@
 
 # Deployment script - intended to run on Spire servers
 
+# Colors
+C_RESET='\033[0m'
+C_RED='\033[1;31m'
+C_GREEN='\033[1;32m'
+C_YELLOW='\033[1;33m'
+
+# Logs
+PREFIX_INFO="${C_GREEN}[INFO]${C_RESET} [$(date +%d-%m\ %T)]"
+PREFIX_WARN="${C_YELLOW}[WARN]${C_RESET} [$(date +%d-%m\ %T)]"
+PREFIX_CRIT="${C_RED}[CRIT]${C_RESET} [$(date +%d-%m\ %T)]"
+
 # Main
 APP_DIR="${APP_DIR:-/home/ubuntu/app}"
 AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
@@ -33,9 +44,13 @@ set -eu
 
 echo
 echo
-echo "Updating Python dependencies"
-"${PIP}" install --upgrade pip
-"${PIP}" install -r "${APP_DIR}/requirements.txt"
+echo -e "${PREFIX_INFO} Upgrading Python pip and setuptools"
+"${PIP}" install --upgrade pip setuptools
+
+echo
+echo
+echo -e "${PREFIX_INFO} Installing Python dependencies"
+"${PIP}" install -e "${APP_DIR}/"
 
 echo
 echo
