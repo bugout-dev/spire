@@ -305,7 +305,9 @@ def main() -> None:
         "get", description="Get Spire journal"
     )
     parser_journal_get.add_argument(
-        "-n", "--name", help="Journal name",
+        "-n",
+        "--name",
+        help="Journal name",
     )
     parser_journal_get.set_defaults(func=journals_get_handler)
 
@@ -321,10 +323,16 @@ def main() -> None:
         "add", description="Add journal holders"
     )
     parser_holders_add.add_argument(
-        "-j", "--journal", required=True, help="Journal id",
+        "-j",
+        "--journal",
+        required=True,
+        help="Journal id",
     )
     parser_holders_add.add_argument(
-        "-o", "--holder", required=True, help="User's/group's id)",
+        "-o",
+        "--holder",
+        required=True,
+        help="User's/group's id)",
     )
     parser_holders_add.add_argument(
         "-t",
@@ -354,14 +362,20 @@ def main() -> None:
         "restore", description="Restore journal and index from backup"
     )
     parser_backup_restore.add_argument(
-        "-j", "--journal", required=True, help="Journal id",
+        "-j",
+        "--journal",
+        required=True,
+        help="Journal id",
     )
     parser_backup_restore.set_defaults(func=journal_backup_restore_handler)
     parser_backup_purge = subcommands_backup.add_parser(
         "purge", description="Purge journal completle"
     )
     parser_backup_purge.add_argument(
-        "-j", "--journal", required=True, help="Journal id",
+        "-j",
+        "--journal",
+        required=True,
+        help="Journal id",
     )
     parser_backup_purge.set_defaults(func=journal_backup_purge_handler)
 

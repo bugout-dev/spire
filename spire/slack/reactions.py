@@ -381,7 +381,9 @@ def handle_journal_index_remove(item: Dict[str, Any]) -> None:
 
         try:
             bugout_user = get_bugout_user(
-                db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                db_session,
+                bot_installation.id,
+                throw_on=Existence.DoesNotExist,
             )
             bugout_user = cast(SlackBugoutUser, bugout_user)
         except BugoutUserNotFound as e:
@@ -419,15 +421,26 @@ def handle_journal_index_remove(item: Dict[str, Any]) -> None:
         return
 
     remove_reaction(
-        slack_token, message_channel, message_ts, bot_installation,
+        slack_token,
+        message_channel,
+        message_ts,
+        bot_installation,
     )
 
     entry_id = search_entry(
-        journal_base_url, message_ts, reaction_user, bugout_user, bot_installation,
+        journal_base_url,
+        message_ts,
+        reaction_user,
+        bugout_user,
+        bot_installation,
     )
 
     remove_entry(
-        journal_base_url, entry_id, reaction_user, bugout_user, bot_installation,
+        journal_base_url,
+        entry_id,
+        reaction_user,
+        bugout_user,
+        bot_installation,
     )
 
 
@@ -537,7 +550,9 @@ def handle_journal_index_reaction(item: Dict[str, Any]) -> None:
 
         try:
             bugout_user = get_bugout_user(
-                db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                db_session,
+                bot_installation.id,
+                throw_on=Existence.DoesNotExist,
             )
             bugout_user = cast(SlackBugoutUser, bugout_user)
         except BugoutUserNotFound as e:

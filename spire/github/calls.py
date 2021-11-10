@@ -179,7 +179,7 @@ def get_pr_commits(
 ) -> List[Dict[str, Any]]:
     """
     Return list of commits for Pull Request.
-    
+
     Docs: https://docs.github.com/en/rest/reference/pulls#list-commits-on-a-pull-request
     """
     url = f"https://api.github.com/repos/{org_name}/{repo_name}/pulls/{pull_number}/commits"
@@ -204,7 +204,7 @@ def get_pr_comments(
 ) -> List[Dict[str, Any]]:
     """
     Return list of comments for Pull Request or Issue.
-    
+
     Docs: https://docs.github.com/en/rest/reference/pulls#list-commits-on-a-pull-request
     """
     url = f"https://api.github.com/repos/{org_name}/{repo_name}/issues/{pull_number}/comments"

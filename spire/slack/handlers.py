@@ -150,9 +150,9 @@ async def handle_app_uninstall(
     db_session: Session, team_id: str, spire_api_url: str
 ) -> None:
     """
-    Handles uninstall of app from workspace by marking SlackOAuthEvent as deleted, removing groups 
+    Handles uninstall of app from workspace by marking SlackOAuthEvent as deleted, removing groups
     and it's ids from journal permissions pertaining to that workspace from internal database.
-    
+
     BroodUser, SlackBugoutUser, index configuration with journal is saved.
     """
     query = db_session.query(SlackOAuthEvent).filter(SlackOAuthEvent.team_id == team_id)

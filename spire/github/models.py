@@ -83,7 +83,11 @@ class GitHubBugoutUser(Base):  # type: ignore
         nullable=False,
     )
     event_id = Column(
-        UUID(as_uuid=True), ForeignKey("github_oauth_events.id", ondelete="CASCADE",),
+        UUID(as_uuid=True),
+        ForeignKey(
+            "github_oauth_events.id",
+            ondelete="CASCADE",
+        ),
     )
     bugout_user_id = Column(String, nullable=False)
     bugout_group_id = Column(String, nullable=True)
@@ -102,7 +106,7 @@ class GitHubBugoutUser(Base):  # type: ignore
 class GitHubRepo(Base):  # type: ignore
     """
     List of all organization repositories.
-    
+
     Links with summaries related to.
     """
 
@@ -117,7 +121,10 @@ class GitHubRepo(Base):  # type: ignore
     )
     event_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_oauth_events.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_oauth_events.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     github_repo_id = Column(Integer, nullable=False)
@@ -146,12 +153,18 @@ class GitHubIssuePR(Base):  # type: ignore
     )
     repo_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_repos.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_repos.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     event_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_oauth_events.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_oauth_events.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     comments_url = Column(String, nullable=True)
@@ -179,17 +192,26 @@ class GitHubCheck(Base):  # type: ignore
     )
     issue_pr_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_issues_prs.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_issues_prs.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     repo_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_repos.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_repos.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     event_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_oauth_events.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_oauth_events.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
 
@@ -215,7 +237,10 @@ class GitHubCheckNotes(Base):  # type: ignore
     )
     check_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_checks.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_checks.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     note = Column(String, nullable=False)
@@ -250,7 +275,10 @@ class GitHubLocust(Base):  # type: ignore
     )
     issue_pr_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("github_issues_prs.id", ondelete="CASCADE",),
+        ForeignKey(
+            "github_issues_prs.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     terminal_hash = Column(String, nullable=False)
@@ -268,7 +296,11 @@ class GithubIndexConfiguration(Base):  # type: ignore
     __tablename__ = "github_index_configurations"
 
     github_oauth_event_id = Column(
-        UUID(as_uuid=True), ForeignKey("github_oauth_events.id", ondelete="CASCADE",),
+        UUID(as_uuid=True),
+        ForeignKey(
+            "github_oauth_events.id",
+            ondelete="CASCADE",
+        ),
     )
     index_name = Column(String, nullable=False)
     index_url = Column(String, nullable=False)
@@ -285,4 +317,9 @@ class GithubIndexConfiguration(Base):  # type: ignore
         nullable=False,
     )
 
-    __table_args__ = (PrimaryKeyConstraint("github_oauth_event_id", "index_name",),)
+    __table_args__ = (
+        PrimaryKeyConstraint(
+            "github_oauth_event_id",
+            "index_name",
+        ),
+    )

@@ -50,7 +50,9 @@ def _index_p(es_client: elasticsearch.Elasticsearch, index_name: str) -> bool:
 
 
 def index_p(
-    es_client: elasticsearch.Elasticsearch, index_id: Union[str, UUID], **kwargs,
+    es_client: elasticsearch.Elasticsearch,
+    index_id: Union[str, UUID],
+    **kwargs,
 ):
     """
     Checks if an index exists for a given user and journal.
@@ -278,7 +280,9 @@ def bulk_delete_entries(
 
 
 def delete_journal_entries(
-    es_client: elasticsearch.Elasticsearch, es_index: str, journal_id: Union[str, UUID],
+    es_client: elasticsearch.Elasticsearch,
+    es_index: str,
+    journal_id: Union[str, UUID],
 ) -> str:
     """
     Delete an existing entries in a journal.

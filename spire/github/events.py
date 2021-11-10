@@ -24,7 +24,7 @@ async def bot_installation_handler(
     create_installation: bool = False,
 ) -> GitHubOAuthEvent:
     """
-    Get bot_installation for webhook call, if doesn't exist create new one when 
+    Get bot_installation for webhook call, if doesn't exist create new one when
     provided argument create with True value.
     """
     installation_response = response_body.get("installation", {})
@@ -104,7 +104,9 @@ async def github_installation_deleted(response_body: Dict[str, Any]) -> None:
 
 
 async def github_process_repo(
-    db_session, response_body: Dict[str, Any], event_id: uuid.UUID,
+    db_session,
+    response_body: Dict[str, Any],
+    event_id: uuid.UUID,
 ) -> GitHubRepo:
     """
     Check if repo does not exists, it creates new one for bot_installation.
@@ -140,7 +142,7 @@ async def github_pull_request_opened(response_body: Dict[str, Any]) -> None:
     """
     Process opened and reopened Pull Request.
     To check draft status use: pull_request_obj.get("draft") == False/True
-    
+
     Docs: https://docs.github.com/en/free-pro-team@latest/developers/apps/identifying-and-authorizing-users-for-github-apps#handling-a-revoked-github-app-authorization
     """
     github_installation_id = response_body.get("installation", {}).get("id", int())
@@ -178,7 +180,10 @@ async def github_pull_request_opened(response_body: Dict[str, Any]) -> None:
             )
             if issue_pr.entry_id != entry_id:
                 await actions.update_issue_pr(
-                    db_session, repo.id, comments_url, entry_id=entry_id,
+                    db_session,
+                    repo.id,
+                    comments_url,
+                    entry_id=entry_id,
                 )
 
         except Exception as e:
@@ -221,7 +226,10 @@ async def github_pull_request_synchronize(response_body: Dict[str, Any]) -> None
             )
             if issue_pr.entry_id != entry_id:
                 await actions.update_issue_pr(
-                    db_session, repo.id, comments_url, entry_id=entry_id,
+                    db_session,
+                    repo.id,
+                    comments_url,
+                    entry_id=entry_id,
                 )
         except Exception as e:
             logger.error(repr(e))

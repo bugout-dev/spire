@@ -162,6 +162,8 @@ class SlackIndexConfiguration(Base):  # type: ignore
 
     __table_args__ = (
         PrimaryKeyConstraint(
-            "slack_oauth_event_id", "index_name", name="pk_slack_index_configurations",
+            "slack_oauth_event_id",
+            "index_name",
+            name="pk_slack_index_configurations",
         ),
     )

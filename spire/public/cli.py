@@ -20,7 +20,10 @@ def create_public_journal(args: argparse.Namespace) -> None:
     """
     session = SessionLocal()
     try:
-        public_journal = PublicJournal(journal_id=args.journal, user_id=args.user,)
+        public_journal = PublicJournal(
+            journal_id=args.journal,
+            user_id=args.user,
+        )
         session.add(public_journal)
         session.commit()
 
@@ -154,10 +157,16 @@ def main() -> None:
         "create", description="Create public bugout journal"
     )
     parser_journal_create.add_argument(
-        "-j", "--journal", required=True, help="Journal id",
+        "-j",
+        "--journal",
+        required=True,
+        help="Journal id",
     )
     parser_journal_create.add_argument(
-        "-u", "--user", required=True, help="Public user id",
+        "-u",
+        "--user",
+        required=True,
+        help="Public user id",
     )
     parser_journal_create.set_defaults(func=create_public_journal)
     parser_journals_list = subcommands_journals.add_parser(

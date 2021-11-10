@@ -116,7 +116,8 @@ async def journal_by_permalink_handler(
         )
     except actions.JournalPermalinkNotFound:
         raise HTTPException(
-            status_code=404, detail="There is no permalink for requested journal",
+            status_code=404,
+            detail="There is no permalink for requested journal",
         )
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
@@ -144,7 +145,8 @@ async def journal_entries_by_permalink_handler(
         )
     except actions.JournalPermalinkNotFound:
         raise HTTPException(
-            status_code=404, detail="There is no permalink for requested journal",
+            status_code=404,
+            detail="There is no permalink for requested journal",
         )
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
@@ -176,11 +178,13 @@ async def get_journal_entries_by_permalink_handler(
         )
     except actions.JournalPermalinkNotFound:
         raise HTTPException(
-            status_code=404, detail="There is no permalink for requested journal",
+            status_code=404,
+            detail="There is no permalink for requested journal",
         )
     except actions.JournalEntryPermalinkNotFound:
         raise HTTPException(
-            status_code=404, detail="There is no permalink for requested entry",
+            status_code=404,
+            detail="There is no permalink for requested entry",
         )
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
@@ -209,7 +213,8 @@ async def search_permalink_journal_handler(
         )
     except actions.JournalPermalinkNotFound:
         raise HTTPException(
-            status_code=404, detail="There is no permalink for requested journal",
+            status_code=404,
+            detail="There is no permalink for requested journal",
         )
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
@@ -290,7 +295,8 @@ async def revoke_journal_permalink(
         )
     except actions.JournalPermalinkNotFound:
         raise HTTPException(
-            status_code=404, detail="There is no permalink for provided journal id",
+            status_code=404,
+            detail="There is no permalink for provided journal id",
         )
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")

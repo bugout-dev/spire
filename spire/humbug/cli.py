@@ -194,10 +194,10 @@ def get_humbug_restricted_tokens(args: argparse.Namespace) -> None:
 def synchronize_humbug_restricted_token(args: argparse.Namespace) -> None:
     """
     Synchronize restricted tokens with Brood database.
-    
+
     If token was revoked on Brood side, it deletes unactive from HumbugBugoutUserToken.
-    If token was created on Brood side and doesn't exist in Spire database, it 
-    creates a record in HumbugBugoutUserToken. 
+    If token was created on Brood side and doesn't exist in Spire database, it
+    creates a record in HumbugBugoutUserToken.
     """
     session = SessionLocal()
     try:
