@@ -54,7 +54,9 @@ def get_default_indices() -> List[Index]:
 
 
 def create_team_journal_and_register_index(
-    db_session: Session, journal_api_url: str, bot_installation: SlackOAuthEvent,
+    db_session: Session,
+    journal_api_url: str,
+    bot_installation: SlackOAuthEvent,
 ) -> Index:
     """
     Creates a team journal and registers the index as a Slack index configuration. This only works
@@ -86,7 +88,9 @@ def create_team_journal_and_register_index(
         return index_configuration
 
     bugout_user = get_bugout_user(
-        db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+        db_session,
+        bot_installation.id,
+        throw_on=Existence.DoesNotExist,
     )
     bugout_user = cast(SlackBugoutUser, bugout_user)
 
@@ -141,7 +145,9 @@ def create_team_journal_and_register_index(
 
 
 def get_index_by_name(
-    db_session: Session, bot_installation: SlackOAuthEvent, index_name: str,
+    db_session: Session,
+    bot_installation: SlackOAuthEvent,
+    index_name: str,
 ) -> SlackIndexConfiguration:
     """
     Gets an index by name. Raises an error if the index is not found.

@@ -337,7 +337,7 @@ async def create_check(
     """
     Process request which creating Check at GitHub and adding it to database.
 
-    We set github_status to None to be able mark this check as completed when 
+    We set github_status to None to be able mark this check as completed when
     because GitHub response us back with same check.
     """
     check_response = await calls.create_check_request(
@@ -426,7 +426,7 @@ async def update_check_notes(
     accepted_by: Optional[str] = None,
 ) -> None:
     """
-    Updates conclusion of check note. If Check accepted, 
+    Updates conclusion of check note. If Check accepted,
     user (accepted_by) should be provided.
     """
     query = (
@@ -443,7 +443,10 @@ async def update_check_notes(
         )
     else:
         query.update(
-            {GitHubCheckNotes.accepted: accepted, GitHubCheckNotes.accepted_by: None,}
+            {
+                GitHubCheckNotes.accepted: accepted,
+                GitHubCheckNotes.accepted_by: None,
+            }
         )
     db_session.commit()
 
@@ -712,7 +715,8 @@ async def handle_app_uninstall(
     installation_user = installation_user_query.one()
 
     bugout_api.delete_group(
-        installation_user.bugout_access_token, installation_user.bugout_group_id,
+        installation_user.bugout_access_token,
+        installation_user.bugout_group_id,
     )
     installation_user_query.update({GitHubBugoutUser.bugout_group_id: None})
     db_session.commit()
@@ -790,13 +794,19 @@ async def render_check_details(
 
 
 def add_commits_to_summary(
-    token: str, org_name: str, repo_name: str, pull_number: int,
+    token: str,
+    org_name: str,
+    repo_name: str,
+    pull_number: int,
 ) -> List[EntrySummaryCommitReport]:
     """
     Extract commits from GitHub Pull Request and update summary.
     """
     pr_commits: List[Any] = calls.get_pr_commits(
-        repo_name=repo_name, org_name=org_name, token=token, pull_number=pull_number,
+        repo_name=repo_name,
+        org_name=org_name,
+        token=token,
+        pull_number=pull_number,
     )
 
     summary_commits = []
@@ -820,13 +830,19 @@ def add_commits_to_summary(
 
 
 def add_comments_to_summary(
-    token: str, org_name: str, repo_name: str, pull_number: int,
+    token: str,
+    org_name: str,
+    repo_name: str,
+    pull_number: int,
 ) -> List[EntrySummaryCommentsReport]:
     """
     Extract comments from GitHub Pull Request or Issue and update summary.
     """
     pr_comments: List[Any] = calls.get_pr_comments(
-        repo_name=repo_name, org_name=org_name, token=token, pull_number=pull_number,
+        repo_name=repo_name,
+        org_name=org_name,
+        token=token,
+        pull_number=pull_number,
     )
 
     summary_comments = []

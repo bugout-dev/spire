@@ -95,7 +95,8 @@ async def set_actions(
 
 @app.delete("/default_journal", tags=["default journal"], response_model=None)
 async def unset_actions(
-    request: Request, db_session: Session = Depends(db.yield_connection_from_env),
+    request: Request,
+    db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
     Unset default journal.

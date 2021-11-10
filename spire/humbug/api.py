@@ -269,7 +269,10 @@ async def delete_humbug_integration_handler(
         )
 
     background_tasks.add_task(
-        actions.remove_humbug_dependencies, db_session, user_token, humbug_event,
+        actions.remove_humbug_dependencies,
+        db_session,
+        user_token,
+        humbug_event,
     )
 
     return HumbugIntegrationResponse(
@@ -525,7 +528,8 @@ async def create_report(
             redis_client.rpush(
                 REDIS_REPORTS_QUEUE,
                 HumbugCreateReportTask(
-                    report=report, bugout_token=restricted_token,
+                    report=report,
+                    bugout_token=restricted_token,
                 ).json(),
             )
         except Exception as err:
@@ -583,7 +587,8 @@ async def bulk_create_reports(
         for report in reports_list:
             reports_pack.append(
                 HumbugCreateReportTask(
-                    report=report, bugout_token=restricted_token,
+                    report=report,
+                    bugout_token=restricted_token,
                 ).json()
             )
 
@@ -591,7 +596,8 @@ async def bulk_create_reports(
             redis_client = db.redis_connection()
 
             redis_client.rpush(
-                REDIS_REPORTS_QUEUE, *reports_pack,
+                REDIS_REPORTS_QUEUE,
+                *reports_pack,
             )
         except Exception as err:
             logger.error(f"Error bulk push reports to redis: {err}")

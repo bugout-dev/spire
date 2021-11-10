@@ -88,7 +88,9 @@ def populate_admin_parser(parser: argparse.ArgumentParser) -> None:
 
 
 def authorize_bot_installation(
-    db_session: Session, bot_installation: SlackOAuthEvent, bugout_auth_url: str,
+    db_session: Session,
+    bot_installation: SlackOAuthEvent,
+    bugout_auth_url: str,
 ) -> SlackBugoutUser:
     """
     Authorize a bot installation, checks if current_slack_bugout_user exists then return it.
@@ -200,7 +202,9 @@ async def admin_handler(
         elif args.admin_command == COMMAND_AUTHORIZE:
             try:
                 slack_bugout_user = get_bugout_user(
-                    db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                    db_session,
+                    bot_installation.id,
+                    throw_on=Existence.DoesNotExist,
                 )
                 bugout_user = (
                     db_session.query(SlackBugoutUser)
@@ -240,7 +244,9 @@ async def admin_handler(
         elif args.admin_command == COMMAND_REVOKE:
             try:
                 slack_bugout_user = get_bugout_user(
-                    db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                    db_session,
+                    bot_installation.id,
+                    throw_on=Existence.DoesNotExist,
                 )
                 bugout_user = (
                     db_session.query(SlackBugoutUser)
@@ -294,7 +300,9 @@ async def admin_handler(
 
             try:
                 slack_bugout_user = get_bugout_user(
-                    db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                    db_session,
+                    bot_installation.id,
+                    throw_on=Existence.DoesNotExist,
                 )
                 bugout_user = BroodUser(
                     id=slack_bugout_user.bugout_user_id,

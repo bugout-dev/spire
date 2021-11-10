@@ -213,7 +213,9 @@ async def search_blocks_modifier(
         if specified_index.use_bugout_auth:
             try:
                 bugout_user = get_bugout_user(
-                    db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                    db_session,
+                    bot_installation.id,
+                    throw_on=Existence.DoesNotExist,
                 )
             except BugoutUserNotFound:
                 return blocks.append(
@@ -377,7 +379,11 @@ async def handle_mention(
             blocks: List[Dict[str, Any]] = [
                 {
                     "type": "header",
-                    "text": {"type": "plain_text", "text": "Bugout", "emoji": True,},
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Bugout",
+                        "emoji": True,
+                    },
                 },
                 {
                     "type": "section",

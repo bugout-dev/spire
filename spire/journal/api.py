@@ -199,7 +199,9 @@ async def get_scopes(
         return ListScopesResponse(
             scopes=[
                 ScopeResponse(
-                    api=scope.api, scope=scope.scope, description=scope.description,
+                    api=scope.api,
+                    scope=scope.scope,
+                    description=scope.description,
                 )
                 for scope in scopes
             ]
@@ -998,7 +1000,9 @@ async def create_journal_entries_pack(
 
     try:
         journal_entries_response = await actions.create_journal_entries_pack(
-            db_session, journal.id, entries_request,
+            db_session,
+            journal.id,
+            entries_request,
         )
     except actions.JournalNotFound:
         logger.error(
@@ -1277,7 +1281,10 @@ async def update_entry_content(
 
     try:
         journal_entry_container = await actions.get_journal_entries(
-            db_session, journal_spec, entry_id, request.state.user_group_id_list,
+            db_session,
+            journal_spec,
+            entry_id,
+            request.state.user_group_id_list,
         )
         if len(journal_entry_container) == 0:
             raise actions.EntryNotFound()
@@ -1667,7 +1674,9 @@ async def delete_entries_by_tags(
     es_index = journal.search_index
 
     num_entries_to_delete = await actions.get_entries_count_by_tags(
-        db_session, journal.id, tags_request.tags,
+        db_session,
+        journal.id,
+        tags_request.tags,
     )
 
     for offset in range(0, num_entries_to_delete, BULK_CHUNKSIZE):
@@ -1955,7 +1964,10 @@ async def update_tags(
     if es_index is not None:
         try:
             entry_container = await actions.get_journal_entries(
-                db_session, journal_spec, entry_id, request.state.user_group_id_list,
+                db_session,
+                journal_spec,
+                entry_id,
+                request.state.user_group_id_list,
             )
             assert len(entry_container) == 1
             entry = entry_container[0]

@@ -78,7 +78,11 @@ class HumbugBugoutUser(Base):  # type: ignore
     access_token_id = Column(UUID(as_uuid=True), nullable=True)
 
     event_id = Column(
-        UUID(as_uuid=True), ForeignKey("humbug_events.id", ondelete="CASCADE",),
+        UUID(as_uuid=True),
+        ForeignKey(
+            "humbug_events.id",
+            ondelete="CASCADE",
+        ),
     )
 
     created_at = Column(
@@ -92,7 +96,8 @@ class HumbugBugoutUser(Base):  # type: ignore
     )
 
     restricted_tokens = relationship(
-        "HumbugBugoutUserToken", cascade="all, delete, delete-orphan",
+        "HumbugBugoutUserToken",
+        cascade="all, delete, delete-orphan",
     )
 
 
@@ -107,11 +112,18 @@ class HumbugBugoutUserToken(Base):  # type: ignore
         UUID(as_uuid=True), primary_key=True, unique=True, nullable=False
     )
     event_id = Column(
-        UUID(as_uuid=True), ForeignKey("humbug_events.id", ondelete="CASCADE",),
+        UUID(as_uuid=True),
+        ForeignKey(
+            "humbug_events.id",
+            ondelete="CASCADE",
+        ),
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("humbug_bugout_users.user_id", ondelete="CASCADE",),
+        ForeignKey(
+            "humbug_bugout_users.user_id",
+            ondelete="CASCADE",
+        ),
     )
     app_name = Column(String, nullable=False)
     app_version = Column(String, nullable=False)

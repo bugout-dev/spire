@@ -301,7 +301,11 @@ async def bugout_search_open(payload: Dict[str, Any]) -> None:
     index_map = {index.index_name: index for index in bot_indices}
     index_options = {
         index_name: {
-            "text": {"type": "plain_text", "text": index_name, "emoji": True,},
+            "text": {
+                "type": "plain_text",
+                "text": index_name,
+                "emoji": True,
+            },
             "value": index_name,
         }
         for index_name in index_map
@@ -328,7 +332,10 @@ async def bugout_search_open(payload: Dict[str, Any]) -> None:
         "element": {
             "type": "plain_text_input",
             "action_id": "bugout-search-query",
-            "placeholder": {"type": "plain_text", "text": "Your Bugout search query",},
+            "placeholder": {
+                "type": "plain_text",
+                "text": "Your Bugout search query",
+            },
         },
     }
     modal_input = {
@@ -513,7 +520,11 @@ async def bugout_search_update(payload: Dict[str, Any]) -> None:
         index_map = {index.index_name: index for index in bot_indices}
         index_options = {
             index_name: {
-                "text": {"type": "plain_text", "text": index_name, "emoji": True,},
+                "text": {
+                    "type": "plain_text",
+                    "text": index_name,
+                    "emoji": True,
+                },
                 "value": index_name,
             }
             for index_name in index_map
@@ -573,7 +584,12 @@ async def bugout_search_update(payload: Dict[str, Any]) -> None:
         view: Dict[str, Any] = {
             "type": "modal",
             "title": {"type": "plain_text", "text": "Bugout search"},
-            "blocks": [search_input, modal_input, {"type": "divider"}, help_block,],
+            "blocks": [
+                search_input,
+                modal_input,
+                {"type": "divider"},
+                help_block,
+            ],
             "submit": {"type": "plain_text", "text": "Search"},
             "callback_id": "bugout-search-callback",
         }
@@ -870,7 +886,9 @@ async def edit_journal_modal_open(payload: Dict[str, Any]) -> None:
         slack_token = bot_installation.bot_access_token
         try:
             bugout_user = get_bugout_user(
-                db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                db_session,
+                bot_installation.id,
+                throw_on=Existence.DoesNotExist,
             )
             bugout_user = cast(SlackBugoutUser, bugout_user)
         except BugoutUserNotFound as e:
@@ -954,7 +972,10 @@ async def edit_journal_modal_open(payload: Dict[str, Any]) -> None:
 
 
 def journal_entry_request_handler(
-    method: str, url: str, payload: Dict[str, Any], authorization_data: Dict[str, Any],
+    method: str,
+    url: str,
+    payload: Dict[str, Any],
+    authorization_data: Dict[str, Any],
 ) -> None:
     """
     Process requests to get entries from Slack journal API.
@@ -1009,7 +1030,9 @@ async def journal_entry_submit_handler(payload: Dict[str, Any]) -> Dict[str, Any
 
         try:
             bugout_user = get_bugout_user(
-                db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                db_session,
+                bot_installation.id,
+                throw_on=Existence.DoesNotExist,
             )
             bugout_user = cast(SlackBugoutUser, bugout_user)
         except BugoutUserNotFound as e:
@@ -1126,7 +1149,9 @@ async def return_tags_options(payload: Dict[str, Any]) -> Dict[str, Any]:
         slack_token = bot_installation.bot_access_token
         try:
             bugout_user = get_bugout_user(
-                db_session, bot_installation.id, throw_on=Existence.DoesNotExist,
+                db_session,
+                bot_installation.id,
+                throw_on=Existence.DoesNotExist,
             )
             bugout_user = cast(SlackBugoutUser, bugout_user)
         except BugoutUserNotFound as e:

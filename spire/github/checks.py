@@ -39,7 +39,8 @@ def populate_check_parser(parser: argparse.ArgumentParser) -> None:
     )
 
     accept_parser = subparsers.add_parser(
-        COMMAND_ACCEPT, description="Unblocks the branch's check",
+        COMMAND_ACCEPT,
+        description="Unblocks the branch's check",
     )
     accept_parser.add_argument(
         "note", nargs="*", help="Name or short description of the check block"
@@ -69,7 +70,9 @@ async def regenerate_check(
         issue_pr.terminal_hash,
     )
     query.update(
-        {GitHubCheck.github_check_id: check_response.get("id"),}
+        {
+            GitHubCheck.github_check_id: check_response.get("id"),
+        }
     )
     db_session.commit()
 
@@ -103,7 +106,7 @@ async def check_handler(
     comment_user: str,
 ) -> str:
     """
-    Process Check CI commands is obtained from GitHub Pull Request comments. 
+    Process Check CI commands is obtained from GitHub Pull Request comments.
     """
     note_str = " ".join(args.note)
 
@@ -164,8 +167,8 @@ async def checkbox_checker(
     checkbox: bool = False,
 ) -> str:
     """
-    Process GitHub checkboxes in markdown comment. 
-    If checkboxes inside comment we parse this lines and 
+    Process GitHub checkboxes in markdown comment.
+    If checkboxes inside comment we parse this lines and
     generate our own Namespace for argparse and call with it
     check_handler.
 

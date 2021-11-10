@@ -60,7 +60,9 @@ def parse_raw_text(raw_token: str) -> GitHubTextToken:
 
     symbol_signifier = raw_token[0]
     parsed_token = GitHubTextToken(
-        raw=raw_token, token_type=GitHubTextTokenType.PLAIN, token=raw_token,
+        raw=raw_token,
+        token_type=GitHubTextTokenType.PLAIN,
+        token=raw_token,
     )
 
     if symbol_signifier.startswith("@"):
@@ -143,7 +145,10 @@ async def locust_handler(
         )
         if previous_comment != summary:
             previous_comments_query.update(
-                {GitHubLocust.response_url: None, GitHubLocust.commented_at: None,}
+                {
+                    GitHubLocust.response_url: None,
+                    GitHubLocust.commented_at: None,
+                }
             )
 
     # Extract summary content
@@ -293,5 +298,8 @@ async def handle_mention(
             )
             if issue_pr.entry_id != entry_id:
                 await actions.update_issue_pr(
-                    db_session, repo.id, comments_url, entry_id=entry_id,
+                    db_session,
+                    repo.id,
+                    comments_url,
+                    entry_id=entry_id,
                 )

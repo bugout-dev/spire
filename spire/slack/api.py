@@ -181,7 +181,8 @@ def submit_oauth_code(code: str) -> None:
 
 @app.get("/oauth")
 async def slack_oauth(
-    code: str, background_tasks: BackgroundTasks,
+    code: str,
+    background_tasks: BackgroundTasks,
 ) -> RedirectResponse:
     background_tasks.add_task(submit_oauth_code, code)
     return RedirectResponse(url=BUGOUT_OAUTH_COMPLETION_URL)
@@ -273,7 +274,8 @@ async def slack_event(
 
 @app.post("/interactions")
 async def slack_interaction(
-    request: Request, background_tasks: BackgroundTasks,
+    request: Request,
+    background_tasks: BackgroundTasks,
 ) -> Any:
     """
     Handler to work with shortcuts in slack
