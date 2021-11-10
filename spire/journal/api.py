@@ -1398,6 +1398,8 @@ async def delete_entry(
         {JournalEntryScopes.DELETE},
     )
 
+    access_token = request.state.token
+
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
     try:
         journal = await actions.find_journal(
@@ -1414,6 +1416,11 @@ async def delete_entry(
         logger.error(f"Error retrieving journal: {str(e)}")
         raise HTTPException(status_code=500)
     es_index = journal.search_index
+
+    try:
+        await actions.delete_entry_images(access_token, journal_spec, entry_id)
+    except Exception as e:
+        logger.error(f"Error due deleting entry images: {str(e)}")
 
     try:
         journal_entry = await actions.delete_journal_entry(
