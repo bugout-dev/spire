@@ -51,6 +51,7 @@ setup(
         "redis",
         "requests",
         "sqlalchemy>=1.4.26",
+        "toml",
         "typed-ast",
         "uvicorn>=0.15.0",
         "uvloop",
