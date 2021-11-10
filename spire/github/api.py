@@ -18,7 +18,7 @@ from fastapi import (
     BackgroundTasks,
 )
 
-import jwt
+import jwt  # type: ignore
 import requests
 from starlette.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -160,7 +160,8 @@ async def github_oauth_handler(
 
 @app.post("/webhook")
 async def github_webhook_handler(
-    request: Request, background_tasks: BackgroundTasks,
+    request: Request,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """
     Handler of all installations, uninstallations and any actions with our GitHub App.
@@ -266,7 +267,10 @@ async def locust_summary_handler(
         )
         if issue_pr.entry_id != entry_id:
             await actions.update_issue_pr(
-                db_session, repo.id, summary.comments_url, entry_id=entry_id,
+                db_session,
+                repo.id,
+                summary.comments_url,
+                entry_id=entry_id,
             )
 
     except actions.IssuePRNotFound:
