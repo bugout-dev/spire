@@ -515,7 +515,6 @@ async def create_report(
             status_code=404, detail="Humbug integration not found in database"
         )
 
-    # Tags size limit
     if len("".join(report.tags)) > MAX_TAGS_SIZE:
         raise HTTPException(
             status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes"
@@ -594,7 +593,6 @@ async def bulk_create_reports(
     if not sync:
         reports_pack = []
         for report in reports_list:
-            # Tags size limit is 512 KB
             if len("".join(report.tags)) > MAX_TAGS_SIZE:
                 raise HTTPException(
                     status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes"
