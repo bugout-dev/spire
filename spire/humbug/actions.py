@@ -11,6 +11,7 @@ from ..journal.data import JournalEntryContent, JournalEntryListContent
 from .models import HumbugEvent, HumbugBugoutUser, HumbugBugoutUserToken
 from ..broodusers import bugout_api, BugoutAPICallFailed
 from ..utils.settings import (
+    MAX_TAG_LENGTH,
     INSTALLATION_TOKEN,
     BOT_INSTALLATION_TOKEN_HEADER,
     auth_url_from_env,
@@ -51,6 +52,12 @@ class HumbugUserNotFound(Exception):
 class HumbugTokenNotFound(Exception):
     """
     Raised on actions that involve humbug token which are not present in the database.
+    """
+
+
+class HumbugTagTooLong(Exception):
+    """
+    Raised on actions when put tag with len more then 256 symbols.
     """
 
 
@@ -468,6 +475,10 @@ async def push_pack_to_journals_api(
         tags = list(set(report.tags))
         tags.append(f"reporter_token:{str(restricted_token)}")
         report.tags = tags
+
+    for tag in [tag for tag in report.tags if tag]:
+        if len(tag) > MAX_TAG_LENGTH:
+            raise HumbugTagTooLong(f"Tag {tag} is too long")
 
     entries_pack_request = JournalEntryListContent(
         entries=[
