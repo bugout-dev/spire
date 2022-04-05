@@ -596,7 +596,9 @@ async def bulk_create_reports(
         for report in reports_list:
             # Tags size limit is 512 KB
             if len("".join(report.tags)) > MAX_TAGS_SIZE:
-                raise HTTPException(status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes")}")
+                raise HTTPException(
+                    status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes"
+                )
 
             reports_pack.append(
                 HumbugCreateReportTask(
