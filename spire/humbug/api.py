@@ -560,8 +560,7 @@ async def create_report(
             )
         except actions.HumbugTagTooLong as err:
             raise HTTPException(
-                status_code=400,
-                detail=f"{err} Tag size limit is {MAX_TAG_LENGTH} Bytes",
+                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes",
             )
         except Exception as err:
             logger.error(str(err))
@@ -636,8 +635,7 @@ async def bulk_create_reports(
             )
         except actions.HumbugTagTooLong as err:
             raise HTTPException(
-                status_code=400,
-                detail=f"{err} Tag size limit is {MAX_TAG_LENGTH} Bytes",
+                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes",
             )
         except Exception as err:
             logger.error(str(err))
