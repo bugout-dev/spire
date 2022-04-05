@@ -558,9 +558,10 @@ async def create_report(
             raise HTTPException(
                 status_code=404, detail="Humbug integration not found in database"
             )
-        except actions.HumbugTagTooLong:
+        except actions.HumbugTagTooLong as err:
             raise HTTPException(
-                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes"
+                status_code=400,
+                detail=f"{err} Tag size limit is {MAX_TAG_LENGTH} Bytes",
             )
         except Exception as err:
             logger.error(str(err))
@@ -633,9 +634,10 @@ async def bulk_create_reports(
             raise HTTPException(
                 status_code=404, detail="Humbug integration not found in database"
             )
-        except actions.HumbugTagTooLong:
+        except actions.HumbugTagTooLong as err:
             raise HTTPException(
-                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes"
+                status_code=400,
+                detail=f"{err} Tag size limit is {MAX_TAG_LENGTH} Bytes",
             )
         except Exception as err:
             logger.error(str(err))

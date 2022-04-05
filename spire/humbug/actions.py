@@ -478,7 +478,7 @@ async def push_pack_to_journals_api(
 
     for tag in [tag for tag in report.tags if tag]:
         if len(tag) > MAX_TAG_LENGTH:
-            raise HumbugTagTooLong(f"Tag {tag} is too long")
+            raise HumbugTagTooLong(f"Tag {tag} is too long.")
 
     entries_pack_request = JournalEntryListContent(
         entries=[
