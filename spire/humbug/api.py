@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from sqlalchemy.orm import Session
 
-from spire.utils.settings import MAX_TAGS_SIZE
+from spire.utils.settings import MAX_TAG_LENGTH, MAX_TAGS_SIZE
 
 from . import actions
 from .data import (
@@ -515,9 +515,11 @@ async def create_report(
             status_code=404, detail="Humbug integration not found in database"
         )
 
-    # Tags size limit is 512 KB
+    # Tags size limit
     if len("".join(report.tags)) > MAX_TAGS_SIZE:
-        raise HTTPException(status_code=400, detail="Tags size limit is 10 MB")
+        raise HTTPException(
+            status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes"
+        )
 
     if store_ip:
         client_ips = actions.process_ip_headers(
@@ -556,6 +558,10 @@ async def create_report(
             raise HTTPException(
                 status_code=404, detail="Humbug integration not found in database"
             )
+        except actions.HumbugTagTooLong:
+            raise HTTPException(
+                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes"
+            )
         except Exception as err:
             logger.error(str(err))
             raise HTTPException(status_code=500)
@@ -588,6 +594,10 @@ async def bulk_create_reports(
     if not sync:
         reports_pack = []
         for report in reports_list:
+            # Tags size limit is 512 KB
+            if len("".join(report.tags)) > MAX_TAGS_SIZE:
+                raise HTTPException(status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes")}")
+
             reports_pack.append(
                 HumbugCreateReportTask(
                     report=report, bugout_token=restricted_token,
@@ -622,7 +632,9 @@ async def bulk_create_reports(
                 status_code=404, detail="Humbug integration not found in database"
             )
         except actions.HumbugTagTooLong:
-            raise HTTPException(status_code=400, detail="Tag size limit is 512 KB")
+            raise HTTPException(
+                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes"
+            )
         except Exception as err:
             logger.error(str(err))
             raise HTTPException(status_code=500)

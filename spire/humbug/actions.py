@@ -485,7 +485,7 @@ async def push_pack_to_journals_api(
             JournalEntryContent(
                 title=report.title,
                 content=report.content,
-                tags=[tag for tag in report.tags if tag and len(tag) <= 1024],
+                tags=[tag for tag in report.tags if tag],
                 context_id=str(restricted_token),
                 context_type="humbug",
                 created_at=report.created_at,
