@@ -2,6 +2,8 @@ from distutils.util import strtobool
 import os
 from typing import Any, cast, Union
 
+from spire.humbug.actions import HumbugTagTooLong
+
 
 class BugoutAuthConfigurationError(ValueError):
     """
@@ -9,6 +11,9 @@ class BugoutAuthConfigurationError(ValueError):
     such server is specified.
     """
 
+
+HUMBUG_REPORTS_MAX_TAG_LENGTH = os.getenv("HUMBUG_REPORTS_MAX_TAG_LENGTH", 256)
+HUMBUG_REPORTS_MAX_TAGS_SIZE = os.getenv("HUMBUG_REPORTS_MAX_TAGS_SIZE", 512 * 1024)
 
 BUGOUT_TIMEOUT_SECONDS_RAW = os.environ.get("BUGOUT_TIMEOUT_SECONDS", 5)
 try:

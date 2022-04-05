@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from uuid import UUID
+import json
 
 from fastapi import (
     FastAPI,
@@ -16,6 +17,8 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from sqlalchemy.orm import Session
+
+from spire.utils.settings import MAX_TAG_LENGTH, MAX_TAGS_SIZE
 
 from . import actions
 from .data import (
@@ -269,10 +272,7 @@ async def delete_humbug_integration_handler(
         )
 
     background_tasks.add_task(
-        actions.remove_humbug_dependencies,
-        db_session,
-        user_token,
-        humbug_event,
+        actions.remove_humbug_dependencies, db_session, user_token, humbug_event,
     )
 
     return HumbugIntegrationResponse(
@@ -515,6 +515,11 @@ async def create_report(
             status_code=404, detail="Humbug integration not found in database"
         )
 
+    if len("".join(report.tags)) > MAX_TAGS_SIZE:
+        raise HTTPException(
+            status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes"
+        )
+
     if store_ip:
         client_ips = actions.process_ip_headers(
             request.headers.get("x-forwarded-for", None)
@@ -528,8 +533,7 @@ async def create_report(
             redis_client.rpush(
                 REDIS_REPORTS_QUEUE,
                 HumbugCreateReportTask(
-                    report=report,
-                    bugout_token=restricted_token,
+                    report=report, bugout_token=restricted_token,
                 ).json(),
             )
         except Exception as err:
@@ -552,6 +556,10 @@ async def create_report(
         except actions.HumbugEventNotFound:
             raise HTTPException(
                 status_code=404, detail="Humbug integration not found in database"
+            )
+        except actions.HumbugTagTooLong as err:
+            raise HTTPException(
+                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes",
             )
         except Exception as err:
             logger.error(str(err))
@@ -585,10 +593,14 @@ async def bulk_create_reports(
     if not sync:
         reports_pack = []
         for report in reports_list:
+            if len("".join(report.tags)) > MAX_TAGS_SIZE:
+                raise HTTPException(
+                    status_code=400, detail=f"Tags size limit is {MAX_TAGS_SIZE} Bytes"
+                )
+
             reports_pack.append(
                 HumbugCreateReportTask(
-                    report=report,
-                    bugout_token=restricted_token,
+                    report=report, bugout_token=restricted_token,
                 ).json()
             )
 
@@ -596,8 +608,7 @@ async def bulk_create_reports(
             redis_client = db.redis_connection()
 
             redis_client.rpush(
-                REDIS_REPORTS_QUEUE,
-                *reports_pack,
+                REDIS_REPORTS_QUEUE, *reports_pack,
             )
         except Exception as err:
             logger.error(f"Error bulk push reports to redis: {err}")
@@ -619,6 +630,10 @@ async def bulk_create_reports(
         except actions.HumbugEventNotFound:
             raise HTTPException(
                 status_code=404, detail="Humbug integration not found in database"
+            )
+        except actions.HumbugTagTooLong as err:
+            raise HTTPException(
+                status_code=400, detail=f"Tag size limit is {MAX_TAG_LENGTH} Bytes",
             )
         except Exception as err:
             logger.error(str(err))
