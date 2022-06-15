@@ -565,21 +565,6 @@ async def create_journal_entries_pack(
     return entries_response
 
 
-async def _get_journal_entry(
-    db_session: Session, journal_entry_id: UUID
-) -> JournalEntry:
-    """
-    Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
-    found in the database.
-    """
-    journal_entry = (
-        db_session.query(JournalEntry)
-        .filter(JournalEntry.id == journal_entry_id)
-        .first()
-    )
-    return journal_entry
-
-
 async def get_journal_entries(
     db_session: Session,
     journal_spec: JournalSpec,
@@ -598,29 +583,7 @@ async def get_journal_entries(
         journal_spec=journal_spec,
         user_group_id_list=user_group_id_list,
     )
-    # read ids of entries
-    query = (
-        db_session.query(
-            JournalEntry.id, func.array_agg(JournalEntryTag.tag).label("tags")
-        )
-        .join(JournalEntryTag, JournalEntry.id == JournalEntryTag.journal_entry_id)
-        .filter(JournalEntry.journal_id == journal.id)
-        .group_by(JournalEntry.id)
-    ).cte(name="entries_ids_with_tags")
-    query = db_session.query(
-        JournalEntry.id,
-        JournalEntry.journal_id,
-        JournalEntry.title,
-        JournalEntry.content,
-        JournalEntry.context_id,
-        JournalEntry.context_url,
-        JournalEntry.context_type,
-        JournalEntry.version_id,
-        JournalEntry.created_at,
-        JournalEntry.updated_at,
-        query.c.tags,
-    ).join(query, JournalEntry.id == query.c.id)
-
+    query = db_session.query(JournalEntry).filter(JournalEntry.journal_id == journal.id)
     if entry_id is not None:
         query = query.filter(JournalEntry.id == entry_id)
     if context_spec is not None:
@@ -752,7 +715,11 @@ def _query_entries_by_tags_intersection(
 
 
 async def hard_delete_by_tags(
-    db_session: Session, journal_id: str, tags: List[str], limit: int, offset: int,
+    db_session: Session,
+    journal_id: str,
+    tags: List[str],
+    limit: int,
+    offset: int,
 ) -> List[UUID]:
     """
     Remove entries from database by tags intersection(AND condition)
