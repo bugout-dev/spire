@@ -1070,12 +1070,13 @@ async def get_entries(
     journal_url = "/".join(url.split("/")[:-1])
     individual_responses = []
     for journal_entry in entries:
+        tags: List[str] = [tag.tag for tag in journal_entry.tags]
         entry_response = JournalEntryResponse(
             id=journal_entry.id,
             journal_url=journal_url,
             title=journal_entry.title,
             content=journal_entry.content,
-            tags=list(journal_entry.tags),
+            tags=tags,
             created_at=journal_entry.created_at,
             updated_at=journal_entry.updated_at,
             context_url=journal_entry.context_url,
@@ -1137,13 +1138,13 @@ async def get_entry(
         raise HTTPException(status_code=500)
     url: str = str(request.url).rstrip("/")
     journal_url = "/".join(url.split("/")[:-2])
-
+    tags: List[str] = [tag.tag for tag in journal_entry.tags]
     return JournalEntryResponse(
         id=journal_entry.id,
         journal_url=journal_url,
         title=journal_entry.title,
         content=journal_entry.content,
-        tags=journal_entry.tags,
+        tags=tags,
         created_at=journal_entry.created_at,
         updated_at=journal_entry.updated_at,
         context_url=journal_entry.context_url,
@@ -1315,10 +1316,7 @@ async def update_entry_content(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    tag_objects = await actions.get_journal_entry_tags(
-        db_session, journal_spec, entry_id, request.state.user_group_id_list
-    )
-    tags = [tag.tag for tag in tag_objects]
+    tags = [tag.tag for tag in journal_entry]
     if es_index is not None:
         try:
             search.new_entry(
@@ -1787,7 +1785,7 @@ async def create_tags(
             )
             assert len(entry_container) == 1
             entry = entry_container[0]
-
+            tags = [tag.tag for tag in entry]
             search.new_entry(
                 es_client,
                 es_index=es_index,
@@ -1795,7 +1793,7 @@ async def create_tags(
                 entry_id=entry.id,
                 title=entry.title,
                 content=entry.content,
-                tags=entry.tags,
+                tags=tags,
                 created_at=entry.created_at,
                 updated_at=entry.updated_at,
                 context_type=entry.context_type,
@@ -2030,7 +2028,7 @@ async def delete_tag(
             )
             assert len(entry_container) == 1
             entry = entry_container[0]
-
+            tags = [tag.tag for tag in entry.tags]
             search.new_entry(
                 es_client,
                 es_index=es_index,
@@ -2038,7 +2036,7 @@ async def delete_tag(
                 entry_id=entry.id,
                 title=entry.title,
                 content=entry.content,
-                tags=entry.tags,
+                tags=tags,
                 created_at=entry.created_at,
                 updated_at=entry.updated_at,
                 context_type=entry.context_type,
