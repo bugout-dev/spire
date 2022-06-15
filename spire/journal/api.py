@@ -1316,7 +1316,7 @@ async def update_entry_content(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    tags = [tag.tag for tag in journal_entry]
+    tags = [tag.tag for tag in journal_entry.tags]
     if es_index is not None:
         try:
             search.new_entry(
@@ -1785,7 +1785,7 @@ async def create_tags(
             )
             assert len(entry_container) == 1
             entry = entry_container[0]
-            tags = [tag.tag for tag in entry]
+            tags = [tag.tag for tag in entry.tags]
             search.new_entry(
                 es_client,
                 es_index=es_index,
