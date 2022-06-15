@@ -106,13 +106,14 @@ class JournalEntry(Base):  # type: ignore
 
     version_id = Column(Integer, nullable=False)
     created_at = Column(
-        DateTime(timezone=True), server_default=utcnow(), nullable=False
+        DateTime(timezone=True), server_default=utcnow(), nullable=False, index=True
     )
     updated_at = Column(
         DateTime(timezone=True),
         server_default=utcnow(),
         onupdate=utcnow(),
         nullable=False,
+        index=True,
     )
 
     tags = relationship(
