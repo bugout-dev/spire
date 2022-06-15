@@ -199,7 +199,9 @@ async def get_scopes(
         return ListScopesResponse(
             scopes=[
                 ScopeResponse(
-                    api=scope.api, scope=scope.scope, description=scope.description,
+                    api=scope.api,
+                    scope=scope.scope,
+                    description=scope.description,
                 )
                 for scope in scopes
             ]
@@ -998,7 +1000,9 @@ async def create_journal_entries_pack(
 
     try:
         journal_entries_response = await actions.create_journal_entries_pack(
-            db_session, journal.id, entries_request,
+            db_session,
+            journal.id,
+            entries_request,
         )
     except actions.JournalNotFound:
         logger.error(
@@ -1070,12 +1074,19 @@ async def get_entries(
     journal_url = "/".join(url.split("/")[:-1])
     individual_responses = []
     for journal_entry in entries:
+        tag_objects = await actions.get_journal_entry_tags(
+            db_session,
+            journal_spec,
+            journal_entry.id,
+            user_group_id_list=request.state.user_group_id_list,
+        )
+        tags = [tag.tag for tag in tag_objects]
         entry_response = JournalEntryResponse(
             id=journal_entry.id,
             journal_url=journal_url,
             title=journal_entry.title,
             content=journal_entry.content,
-            tags=journal_entry.tags,
+            tags=tags,
             created_at=journal_entry.created_at,
             updated_at=journal_entry.updated_at,
             context_url=journal_entry.context_url,
@@ -1137,12 +1148,28 @@ async def get_entry(
         raise HTTPException(status_code=500)
     url: str = str(request.url).rstrip("/")
     journal_url = "/".join(url.split("/")[:-2])
+
+    try:
+        tag_objects = await actions.get_journal_entry_tags(
+            db_session,
+            journal_spec,
+            entry_id,
+            user_group_id_list=request.state.user_group_id_list,
+        )
+    except Exception as e:
+        logger.error(
+            f"Error retrieving tags for entry ({entry_id}) in journal ({journal_id})"
+        )
+        raise HTTPException(status_code=500)
+
+    tags = [tag.tag for tag in tag_objects]
+
     return JournalEntryResponse(
         id=journal_entry.id,
         journal_url=journal_url,
         title=journal_entry.title,
         content=journal_entry.content,
-        tags=journal_entry.tags,
+        tags=tags,
         created_at=journal_entry.created_at,
         updated_at=journal_entry.updated_at,
         context_url=journal_entry.context_url,
@@ -1254,7 +1281,10 @@ async def update_entry_content(
 
     try:
         journal_entry_container = await actions.get_journal_entries(
-            db_session, journal_spec, entry_id, request.state.user_group_id_list,
+            db_session,
+            journal_spec,
+            entry_id,
+            request.state.user_group_id_list,
         )
         if len(journal_entry_container) == 0:
             raise actions.EntryNotFound()
@@ -1273,10 +1303,6 @@ async def update_entry_content(
     except Exception as e:
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
-
-    journal_entry = await actions._get_journal_entry(
-        db_session=db_session, journal_entry_id=journal_entry.id
-    )
 
     journal_entry.title = api_request.title
     journal_entry.content = api_request.content
@@ -1322,7 +1348,6 @@ async def update_entry_content(
         db_session, journal_spec, entry_id, request.state.user_group_id_list
     )
     tags = [tag.tag for tag in tag_objects]
-
     if es_index is not None:
         try:
             search.new_entry(
@@ -1346,7 +1371,7 @@ async def update_entry_content(
             )
 
     return JournalEntryContent(
-        title=journal_entry.title, content=journal_entry.content, tags=tags,
+        title=journal_entry.title, content=journal_entry.content, tags=tags
     )
 
 
@@ -1649,7 +1674,9 @@ async def delete_entries_by_tags(
     es_index = journal.search_index
 
     num_entries_to_delete = await actions.get_entries_count_by_tags(
-        db_session, journal.id, tags_request.tags,
+        db_session,
+        journal.id,
+        tags_request.tags,
     )
 
     for offset in range(0, num_entries_to_delete, BULK_CHUNKSIZE):
@@ -1791,6 +1818,13 @@ async def create_tags(
             )
             assert len(entry_container) == 1
             entry = entry_container[0]
+            all_tags = await actions.get_journal_entry_tags(
+                db_session,
+                journal_spec,
+                entry_id,
+                user_group_id_list=request.state.user_group_id_list,
+            )
+            all_tags_str = [tag.tag for tag in all_tags]
             search.new_entry(
                 es_client,
                 es_index=es_index,
@@ -1798,7 +1832,7 @@ async def create_tags(
                 entry_id=entry.id,
                 title=entry.title,
                 content=entry.content,
-                tags=entry.tags,
+                tags=all_tags_str,
                 created_at=entry.created_at,
                 updated_at=entry.updated_at,
                 context_type=entry.context_type,
@@ -1930,7 +1964,10 @@ async def update_tags(
     if es_index is not None:
         try:
             entry_container = await actions.get_journal_entries(
-                db_session, journal_spec, entry_id, request.state.user_group_id_list,
+                db_session,
+                journal_spec,
+                entry_id,
+                request.state.user_group_id_list,
             )
             assert len(entry_container) == 1
             entry = entry_container[0]
@@ -2033,6 +2070,13 @@ async def delete_tag(
             )
             assert len(entry_container) == 1
             entry = entry_container[0]
+            all_tags = await actions.get_journal_entry_tags(
+                db_session,
+                journal_spec,
+                entry_id,
+                user_group_id_list=request.state.user_group_id_list,
+            )
+            all_tags_str = [tag.tag for tag in all_tags]
             search.new_entry(
                 es_client,
                 es_index=es_index,
@@ -2040,7 +2084,7 @@ async def delete_tag(
                 entry_id=entry.id,
                 title=entry.title,
                 content=entry.content,
-                tags=entry.tags,
+                tags=all_tags_str,
                 created_at=entry.created_at,
                 updated_at=entry.updated_at,
                 context_type=entry.context_type,
@@ -2121,6 +2165,7 @@ async def search_journal(
         max_score: Optional[float] = 1.0
 
         for entry in rows:
+            tags: List[str] = [tag.tag for tag in entry.tags]
             entry_url = f"{journal_url}/entries/{str(entry.id)}"
             content_url = f"{entry_url}/content"
             result = JournalSearchResult(
@@ -2128,7 +2173,7 @@ async def search_journal(
                 content_url=content_url,
                 title=entry.title,
                 content=entry.content,
-                tags=entry.tags,
+                tags=tags,
                 created_at=str(entry.created_at),
                 updated_at=str(entry.updated_at),
                 score=1.0,

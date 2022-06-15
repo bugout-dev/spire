@@ -14,7 +14,7 @@ from dateutil.parser import parse as parse_datetime
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
-from sqlalchemy import and_, or_, not_, func
+from sqlalchemy import and_, or_, not_
 from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.orm import Session, Query
 
@@ -50,7 +50,9 @@ def _index_p(es_client: elasticsearch.Elasticsearch, index_name: str) -> bool:
 
 
 def index_p(
-    es_client: elasticsearch.Elasticsearch, index_id: Union[str, UUID], **kwargs,
+    es_client: elasticsearch.Elasticsearch,
+    index_id: Union[str, UUID],
+    **kwargs,
 ):
     """
     Checks if an index exists for a given user and journal.
@@ -278,7 +280,9 @@ def bulk_delete_entries(
 
 
 def delete_journal_entries(
-    es_client: elasticsearch.Elasticsearch, es_index: str, journal_id: Union[str, UUID],
+    es_client: elasticsearch.Elasticsearch,
+    es_index: str,
+    journal_id: Union[str, UUID],
 ) -> str:
     """
     Delete an existing entries in a journal.
@@ -627,28 +631,7 @@ def search_database(
     TODO(neeraj): Better search functionality:
     2. Assign scores for optional tags
     """
-    query = (
-        db_session.query(
-            JournalEntry.id, func.array_agg(JournalEntryTag.tag).label("tags")
-        )
-        .join(JournalEntryTag, JournalEntry.id == JournalEntryTag.journal_entry_id)
-        .filter(JournalEntry.journal_id == journal_id)
-        .group_by(JournalEntry.id)
-    ).cte(name="entries_ids_with_tags")
-
-    query = db_session.query(
-        JournalEntry.id,
-        JournalEntry.journal_id,
-        JournalEntry.title,
-        JournalEntry.content,
-        JournalEntry.context_id,
-        JournalEntry.context_url,
-        JournalEntry.context_type,
-        JournalEntry.version_id,
-        JournalEntry.created_at,
-        JournalEntry.updated_at,
-        query.c.tags,
-    ).join(query, JournalEntry.id == query.c.id)
+    query = db_session.query(JournalEntry).filter(JournalEntry.journal_id == journal_id)
 
     if search_query.context_type is not None:
         query = query.filter(JournalEntry.context_type == search_query.context_type)
