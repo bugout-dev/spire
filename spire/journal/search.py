@@ -14,7 +14,7 @@ from dateutil.parser import parse as parse_datetime
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
-from sqlalchemy import and_, or_, not_
+from sqlalchemy import and_, or_, not_, func
 from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.orm import Session, Query
 
@@ -50,9 +50,7 @@ def _index_p(es_client: elasticsearch.Elasticsearch, index_name: str) -> bool:
 
 
 def index_p(
-    es_client: elasticsearch.Elasticsearch,
-    index_id: Union[str, UUID],
-    **kwargs,
+    es_client: elasticsearch.Elasticsearch, index_id: Union[str, UUID], **kwargs,
 ):
     """
     Checks if an index exists for a given user and journal.
@@ -86,7 +84,6 @@ def create_index(
 ) -> str:
     """
     Creates an index for a journal. Returns the index identifier.
-
     Documentation on how elsaticsearch chooses analyzers:
     https://www.elastic.co/guide/en/elasticsearch/reference/current/specify-analyzer.html
     """
@@ -280,9 +277,7 @@ def bulk_delete_entries(
 
 
 def delete_journal_entries(
-    es_client: elasticsearch.Elasticsearch,
-    es_index: str,
-    journal_id: Union[str, UUID],
+    es_client: elasticsearch.Elasticsearch, es_index: str, journal_id: Union[str, UUID],
 ) -> str:
     """
     Delete an existing entries in a journal.
@@ -334,7 +329,6 @@ def synchronize(
 ) -> None:
     """
     Synchronize the journal information from the given database with the given Elasticsearch cluster
-
     This can be done for a single journal or for all journals.
     """
     if es_index is None:
@@ -443,7 +437,6 @@ def normalized_search_query(
     """
     A journal search query may specify filters in the query string (e.g. tag:$tag, !tag:$tag,
     updated_at:>$date, etc.)
-
     This function takes a query string and a list of filters, extracts all filters from the query
     string into the list of filters, and returns a SearchQuery object.
     """
@@ -621,13 +614,10 @@ def search_database(
 ) -> Tuple[int, List[JournalEntry]]:
     """
     Implements the same interface as search, but searches in database rather than in Elasticsearch.
-
     This is by way of a bypass for journals whose entries do not need to be indexed in Elasticsearch
     (for example Humbug journals).
-
     Does not implement permission checks since it is assumed that permissions are checked prior to
     calling this method.
-
     TODO(neeraj): Better search functionality:
     2. Assign scores for optional tags
     """
@@ -649,7 +639,6 @@ def search_database(
     for working with tag intersection
     we use exists clause with AND conditions
     it's works correct but has a certain cost for required_tags number
-
     Disscation about changes https://github.com/bugout-dev/spire/pull/15
     """
     if search_query.required_tags:
@@ -732,8 +721,42 @@ def search_database(
         query = query.order_by(JournalEntry.created_at.asc())
     else:
         query = query.order_by(JournalEntry.created_at.desc())
+
     num_entries = query.count()
+
     query = query.limit(size).offset(start)
+
+    journal_entries_temp = query.cte(name="journal_entries_temp")
+
+    entries_ids_with_tags = (
+        db_session.query(journal_entries_temp.c.id, JournalEntryTag.tag).join(
+            JournalEntryTag,
+            JournalEntryTag.journal_entry_id == journal_entries_temp.c.id,
+        )
+    ).cte(name="entries_ids_with_tags")
+
+    aggregated_tags = (
+        db_session.query(
+            entries_ids_with_tags.c.id,
+            func.array_agg(entries_ids_with_tags.c.tag).label("tags"),
+        )
+        .group_by(entries_ids_with_tags.c.id)
+        .cte(name="aggregated_tags")
+    )
+
+    query = db_session.query(
+        journal_entries_temp.c.id.label("id"),
+        aggregated_tags.c.tags.label("tags"),
+        journal_entries_temp.c.title.label("title"),
+        journal_entries_temp.c.content.label("content"),
+        journal_entries_temp.c.context_id.label("context_id"),
+        journal_entries_temp.c.context_url.label("context_url"),
+        journal_entries_temp.c.context_type.label("context_type"),
+        journal_entries_temp.c.version_id.label("version_id"),
+        journal_entries_temp.c.created_at.label("created_at"),
+        journal_entries_temp.c.updated_at.label("updated_at"),
+    ).join(aggregated_tags, journal_entries_temp.c.id == aggregated_tags.c.id)
+
     rows = query.all()
 
     return num_entries, rows
