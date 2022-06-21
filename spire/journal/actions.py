@@ -595,7 +595,53 @@ async def get_journal_entries(
             query = query.filter(JournalEntry.context_url == context_spec.context_url)
     query = query.order_by(JournalEntry.created_at)
     query = query.limit(limit).offset(offset)
+
+    journal_entries_temp = query.cte(name="journal_entries_temp")
+
+    entries_ids_with_tags = (
+        db_session.query(journal_entries_temp.c.id, JournalEntryTag.tag).join(
+            JournalEntryTag,
+            JournalEntryTag.journal_entry_id == journal_entries_temp.c.id,
+        )
+    ).cte(name="entries_ids_with_tags")
+
+    aggregated_tags = (
+        db_session.query(
+            entries_ids_with_tags.c.id,
+            func.array_agg(entries_ids_with_tags.c.tag).label("tags"),
+        )
+        .group_by(entries_ids_with_tags.c.id)
+        .cte(name="aggregated_tags")
+    )
+
+    query = db_session.query(
+        journal_entries_temp.c.id.label("id"),
+        aggregated_tags.c.tags.label("tags"),
+        journal_entries_temp.c.title.label("title"),
+        journal_entries_temp.c.content.label("content"),
+        journal_entries_temp.c.context_id.label("context_id"),
+        journal_entries_temp.c.context_url.label("context_url"),
+        journal_entries_temp.c.context_type.label("context_type"),
+        journal_entries_temp.c.version_id.label("version_id"),
+        journal_entries_temp.c.created_at.label("created_at"),
+        journal_entries_temp.c.updated_at.label("updated_at"),
+    ).join(aggregated_tags, journal_entries_temp.c.id == aggregated_tags.c.id)
     return query.all()
+
+
+async def _get_journal_entry(
+    db_session: Session, journal_entry_id: UUID
+) -> JournalEntry:
+    """
+    Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
+    found in the database.
+    """
+    journal_entry = (
+        db_session.query(JournalEntry)
+        .filter(JournalEntry.id == journal_entry_id)
+        .first()
+    )
+    return journal_entry
 
 
 async def delete_journal_entry(
@@ -715,11 +761,7 @@ def _query_entries_by_tags_intersection(
 
 
 async def hard_delete_by_tags(
-    db_session: Session,
-    journal_id: str,
-    tags: List[str],
-    limit: int,
-    offset: int,
+    db_session: Session, journal_id: str, tags: List[str], limit: int, offset: int,
 ) -> List[UUID]:
     """
     Remove entries from database by tags intersection(AND condition)
