@@ -161,7 +161,6 @@ def ensure_journal_permission(
         )
         raise HTTPException(status_code=404)
     except Exception as err:
-        print(err)
         logger.error(
             f"Error checking permissions for user (id={user_id}) in journal (id={journal_id})"
         )
