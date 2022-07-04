@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Enum as PgEnum,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -83,6 +84,24 @@ class Journal(Base):  # type: ignore
 
 class JournalEntry(Base):  # type: ignore
     __tablename__ = "journal_entries"
+
+    # ix_journal_entries_journal_id_created_at 
+
+    
+    __table_args__ = (
+        Index(
+            "ix_journal_entries_journal_id_created_at",
+            "journal_id",
+            "created_at",
+            unique=False,
+        ),
+        Index(
+            "ix_journal_entries_journal_id_updated_at",
+            "journal_id",
+            "updated_at",
+            unique=False,
+        ),
+    )
 
     id = Column(
         UUID(as_uuid=True),
