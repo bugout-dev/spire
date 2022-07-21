@@ -45,6 +45,7 @@ setup(
         "fastapi>=0.75.0",
         "httptools",
         "multidict",
+        "protobuf==3.19.1",
         "psycopg2-binary>=2.9.1",
         "pydantic",
         "PyJWT==1.7.1",
