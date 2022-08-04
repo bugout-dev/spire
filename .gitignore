@@ -144,3 +144,7 @@ alembic.test.ini
 # Custom
 .secrets/
 scratch
+
+# Schematic
+.schematic.env
+scm/srv/
