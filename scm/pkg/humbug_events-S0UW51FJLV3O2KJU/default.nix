@@ -5,6 +5,6 @@ scm.schema {
     name = "humbug_events";
     upgrade_sql = ./upgrade.sql;
     dependencies = [
-
+        <2022-08-09-humbug_events-R001CXOMEZARH1I7>
     ];
 }

@@ -5,6 +5,6 @@ scm.schema {
     name = "permalink_journals";
     upgrade_sql = ./upgrade.sql;
     dependencies = [
-
+        <2022-08-09-permalink_journals-R001CXODPVGLEDUS>
     ];
 }

@@ -5,6 +5,6 @@ scm.schema {
     name = "preferences_default_journals";
     upgrade_sql = ./upgrade.sql;
     dependencies = [
-
+        <2022-08-09-preferences_default_journals-R001CXOCZRHVFVO2>
     ];
 }

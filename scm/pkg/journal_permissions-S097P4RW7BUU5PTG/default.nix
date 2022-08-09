@@ -5,7 +5,8 @@ scm.schema {
     name = "journal_permissions";
     upgrade_sql = ./upgrade.sql;
     dependencies = [
-        <journals-S074SH7AQ51IC9DC>
         <spire_oauth_scopes-S0ZOWS3OK9R6MRT9>
+        <journals-S074SH7AQ51IC9DC>
+        <2022-08-09-journal_permissions-R001CXO8MNYO28GL>
     ];
 }

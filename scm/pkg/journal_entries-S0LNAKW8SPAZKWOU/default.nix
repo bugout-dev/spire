@@ -6,5 +6,6 @@ scm.schema {
     upgrade_sql = ./upgrade.sql;
     dependencies = [
         <journals-S074SH7AQ51IC9DC>
+        <2022-08-04-journal_entries-R001COSJY6KVDFEJ>
     ];
 }
