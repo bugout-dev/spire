@@ -15,7 +15,7 @@ let
             (getEnv "MDP_GIT")
             (fetchGit {
                 url = "git@github.com:bugout-dev/spire.git";
-                rev = "69b1af2b5c0d8c495fcadb85edf1ea39843b2286";
+                rev = "e02f100d73046701bbee7eb7ddf9a1d75f6f2011";
             })
         ] ++ scm_repos;
     });
