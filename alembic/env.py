@@ -122,7 +122,7 @@ def run_migrations_offline():
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table="spire_alembic_version",
+        version_table="alembic_version",
         include_symbol=include_symbol,
     )
 
@@ -147,7 +147,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            version_table="spire_alembic_version",
+            version_table="alembic_version",
             include_symbol=include_symbol,
         )
 
