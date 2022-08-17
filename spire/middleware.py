@@ -36,8 +36,7 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
             logger.error("BROOD_API_URL environment variable was not set")
             return Response(status_code=500, content="Internal server error")
 
-        brood_user_endpoint = f"{bugout_auth_url}/user"
-        brood_user_groups_endpoint = f"{bugout_auth_url}/groups"
+        brood_endpoint = f"{bugout_auth_url}/auth"
 
         authorization_header = request.headers.get("authorization")
         if authorization_header is None:
@@ -52,7 +51,7 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
         user_token: str = user_token_list[-1]
         try:
             # Get user info
-            r = requests.get(brood_user_endpoint, headers=headers)
+            r = requests.get(brood_endpoint, headers=headers)
             r.raise_for_status()
             response = r.json()
             user_id: Optional[str] = response.get("user_id")
@@ -72,19 +71,12 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
                 )
 
             # Get user's group info
-
-            groups_params = {"include_metrics": "false"}
-            r_g = requests.get(
-                brood_user_groups_endpoint, headers=headers, params=groups_params
-            )
-            r_g.raise_for_status()
-            response_g = r_g.json()
             user_group_id_list: Optional[list] = [
-                group.get("group_id") for group in response_g.get("groups")
+                group.get("group_id") for group in response.get("groups")
             ]
             user_group_id_list_owner: Optional[list] = [
                 group.get("group_id")
-                for group in response_g.get("groups")
+                for group in response.get("groups")
                 if group.get("user_type") == "owner"
             ]
 
