@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+from tokenize import group
 from typing import Callable, Awaitable, List, Optional
 
 import requests
@@ -36,7 +37,7 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
             return Response(status_code=500, content="Internal server error")
 
         brood_user_endpoint = f"{bugout_auth_url}/user"
-        brood_user_groups_endpoint = f"{bugout_auth_url}/groups?include_metrics=false"
+        brood_user_groups_endpoint = f"{bugout_auth_url}/groups"
 
         authorization_header = request.headers.get("authorization")
         if authorization_header is None:
@@ -71,7 +72,9 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
                 )
 
             # Get user's group info
-            r_g = requests.get(brood_user_groups_endpoint, headers=headers)
+
+            groups_params={"include_metrics": "false"}
+            r_g = requests.get(brood_user_groups_endpoint, headers=headers, params=groups_params)
             r_g.raise_for_status()
             response_g = r_g.json()
             user_group_id_list: Optional[list] = [
