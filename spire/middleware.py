@@ -36,7 +36,7 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
             return Response(status_code=500, content="Internal server error")
 
         brood_user_endpoint = f"{bugout_auth_url}/user"
-        brood_user_groups_endpoint = f"{bugout_auth_url}/groups"
+        brood_user_groups_endpoint = f"{bugout_auth_url}/groups?include_metrics=false"
 
         authorization_header = request.headers.get("authorization")
         if authorization_header is None:
