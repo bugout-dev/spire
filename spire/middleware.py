@@ -73,8 +73,10 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
 
             # Get user's group info
 
-            groups_params={"include_metrics": "false"}
-            r_g = requests.get(brood_user_groups_endpoint, headers=headers, params=groups_params)
+            groups_params = {"include_metrics": "false"}
+            r_g = requests.get(
+                brood_user_groups_endpoint, headers=headers, params=groups_params
+            )
             r_g.raise_for_status()
             response_g = r_g.json()
             user_group_id_list: Optional[list] = [
