@@ -157,15 +157,6 @@ async def find_journals(
 ) -> List[Journal]:
     """
     Return list of journals for requested user.
-
-
-
-                    id=journal.id,
-                bugout_user_id=journal.bugout_user_id,
-                holder_ids={holder.holder_id for holder in journal.permissions},
-                name=journal.name,
-                created_at=journal.created_at,
-                updated_at=journal.updated_at,
     """
     query = (
         db_session.query(
