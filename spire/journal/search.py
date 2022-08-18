@@ -27,8 +27,6 @@ from .models import Journal, JournalEntry, JournalEntryTag
 from ..utils.settings import DEFAULT_JOURNALS_ES_INDEX, BULK_CHUNKSIZE
 
 logger = logging.getLogger(__name__)
-# add sqlalchemy logger
-logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 
 class IndexAlreadyExists(Exception):

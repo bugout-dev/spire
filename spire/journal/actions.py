@@ -1010,14 +1010,14 @@ def store_search_results(
     result_bytes = json.dumps(result).encode("utf-8")
     result_key = f"{prefix}/{result_id}.json"
 
-    # s3 = boto3.client("s3")
-    # s3.put_object(
-    #     Body=result_bytes,
-    #     Bucket=bucket,
-    #     Key=result_key,
-    #     ContentType="application/json",
-    #     Metadata={"search_type": "journal"},
-    # )
+    s3 = boto3.client("s3")
+    s3.put_object(
+        Body=result_bytes,
+        Bucket=bucket,
+        Key=result_key,
+        ContentType="application/json",
+        Metadata={"search_type": "journal"},
+    )
 
 
 async def get_scopes(db_session: Session, api: str) -> List[SpireOAuthScopes]:

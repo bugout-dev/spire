@@ -1074,19 +1074,19 @@ async def get_entries(
     journal_url = "/".join(url.split("/")[:-1])
     individual_responses = []
     for journal_entry in entries:
-        # tag_objects = await actions.get_journal_entry_tags(
-        #     db_session,
-        #     journal_spec,
-        #     journal_entry.id,
-        #     user_group_id_list=request.state.user_group_id_list,
-        # )
-        # tags = [tag.tag for tag in tag_objects]
+        tag_objects = await actions.get_journal_entry_tags(
+            db_session,
+            journal_spec,
+            journal_entry.id,
+            user_group_id_list=request.state.user_group_id_list,
+        )
+        tags = [tag.tag for tag in tag_objects]
         entry_response = JournalEntryResponse(
             id=journal_entry.id,
             journal_url=journal_url,
             title=journal_entry.title,
             content=journal_entry.content,
-            tags=journal_entry.tags,
+            tags=tags,
             created_at=journal_entry.created_at,
             updated_at=journal_entry.updated_at,
             context_url=journal_entry.context_url,
@@ -2149,7 +2149,6 @@ async def search_journal(
         max_score: Optional[float] = 1.0
 
         for entry in rows:
-            # tags: List[str] = [tag.tag for tag in entry.tags]
             entry_url = f"{journal_url}/entries/{str(entry.id)}"
             content_url = f"{entry_url}/content"
             result = JournalSearchResult(
