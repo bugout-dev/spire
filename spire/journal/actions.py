@@ -168,7 +168,14 @@ async def find_journals(
                 updated_at=journal.updated_at,
     """
     query = (
-        db_session.query(Journal.id, Journal.bugout_user_id, func.array_agg(JournalPermissions.holder_id).label("holders_ids"), Journal.name, Journal.created_at, Journal.updated_at)
+        db_session.query(
+            Journal.id,
+            Journal.bugout_user_id,
+            func.array_agg(JournalPermissions.holder_id).label("holders_ids"),
+            Journal.name,
+            Journal.created_at,
+            Journal.updated_at,
+        )
         .join(JournalPermissions, JournalPermissions.journal_id == Journal.id)
         .join(SpireOAuthScopes, JournalPermissions.permission == SpireOAuthScopes.scope)
         .filter(SpireOAuthScopes.api == "journals", Journal.deleted == False)
@@ -180,7 +187,13 @@ async def find_journals(
                 JournalPermissions.holder_id == user_id,
             )
         )
-        .group_by(Journal.id, Journal.bugout_user_id, Journal.name, Journal.created_at, Journal.updated_at)
+        .group_by(
+            Journal.id,
+            Journal.bugout_user_id,
+            Journal.name,
+            Journal.created_at,
+            Journal.updated_at,
+        )
     )
 
     journals = query.all()
