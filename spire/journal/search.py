@@ -16,7 +16,7 @@ from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
 from sqlalchemy import and_, or_, not_, func
 from sqlalchemy.sql.elements import BooleanClauseList
-from sqlalchemy.orm import Session, Query 
+from sqlalchemy.orm import Session, Query
 
 
 from . import actions
@@ -766,8 +766,6 @@ def search_database(
         journal_entries_temp.c.created_at.label("created_at"),
         journal_entries_temp.c.updated_at.label("updated_at"),
     ).join(aggregated_tags, journal_entries_temp.c.id == aggregated_tags.c.id)
-
-
 
     rows = query.all()
 

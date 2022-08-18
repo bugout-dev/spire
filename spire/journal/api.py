@@ -1295,8 +1295,6 @@ async def update_entry_content(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    
-
     journal_entry.title = api_request.title
     journal_entry.content = api_request.content
     db_session.add(journal_entry)
