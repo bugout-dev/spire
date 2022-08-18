@@ -734,7 +734,7 @@ async def process_secret(
     try:
         user = bugout_api.get_user(bugout_secret)
     except Exception as e:
-        logger.info(f"Provided incorrect Bugout Secret -- {str(e)}")
+        logger.info(f"Provided incorrect Bugout Secret")
         raise BugoutSecretIncorrect(
             f"Did not find user with provided token as Bugout Secret"
         )
