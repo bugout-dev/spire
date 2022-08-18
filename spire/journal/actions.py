@@ -612,9 +612,9 @@ async def get_journal_entries(
     return query.all()
 
 
-async def _get_journal_entry(
+async def get_journal_entry(
     db_session: Session, journal_entry_id: UUID
-) -> JournalEntry:
+) -> Optional[JournalEntry]:
     """
     Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
     found in the database.

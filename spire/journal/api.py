@@ -1280,7 +1280,7 @@ async def update_entry_content(
     es_index = journal.search_index
 
     try:
-        journal_entry = await actions._get_journal_entry(
+        journal_entry = await actions.get_journal_entry(
             db_session=db_session, journal_entry_id=entry_id
         )
         if journal_entry is None:
@@ -1801,7 +1801,7 @@ async def create_tags(
 
     if es_index is not None:
         try:
-            journal_entry = await actions._get_journal_entry(
+            journal_entry = await actions.get_journal_entry(
                 db_session=db_session, journal_entry_id=entry_id
             )
             assert journal_entry != None
@@ -1951,7 +1951,7 @@ async def update_tags(
 
     if es_index is not None:
         try:
-            journal_entry = await actions._get_journal_entry(
+            journal_entry = await actions.get_journal_entry(
                 db_session=db_session, journal_entry_id=entry_id
             )
             assert journal_entry != None
@@ -2047,7 +2047,7 @@ async def delete_tag(
 
     if es_index is not None:
         try:
-            journal_entry = await actions._get_journal_entry(
+            journal_entry = await actions.get_journal_entry(
                 db_session=db_session, journal_entry_id=entry_id
             )
             assert journal_entry != None
