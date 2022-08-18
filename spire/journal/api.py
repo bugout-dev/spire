@@ -460,7 +460,7 @@ async def list_journals(
             JournalResponse(
                 id=journal.id,
                 bugout_user_id=journal.bugout_user_id,
-                holder_ids={holder.holder_id for holder in journal.permissions},
+                holder_ids=journal.holders_ids,
                 name=journal.name,
                 created_at=journal.created_at,
                 updated_at=journal.updated_at,
