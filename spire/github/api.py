@@ -277,7 +277,7 @@ async def locust_summary_handler(
         logger.error(f"Issue or PR not found for comments_url: {summary.comments_url}")
         raise HTTPException(status_code=404)
     except actions.BugoutSecretIncorrect:
-        logger.error(f"Bugout Secret {bugout_secret} is incorrect")
+        logger.error(f"Bugout Secret is incorrect")
         raise HTTPException(status_code=403)
     except actions.S3CallFailed:
         logger.error("Error due processing Locust summary")
