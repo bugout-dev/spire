@@ -598,6 +598,21 @@ async def get_journal_entries(
     return query.all()
 
 
+async def _get_journal_entry(
+    db_session: Session, journal_entry_id: UUID
+) -> JournalEntry:
+    """
+    Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
+    found in the database.
+    """
+    journal_entry = (
+        db_session.query(JournalEntry)
+        .filter(JournalEntry.id == journal_entry_id)
+        .one_or_none()
+    )
+    return journal_entry
+
+
 async def delete_journal_entry(
     db_session: Session,
     journal_spec: JournalSpec,
@@ -981,14 +996,14 @@ def store_search_results(
     result_bytes = json.dumps(result).encode("utf-8")
     result_key = f"{prefix}/{result_id}.json"
 
-    s3 = boto3.client("s3")
-    s3.put_object(
-        Body=result_bytes,
-        Bucket=bucket,
-        Key=result_key,
-        ContentType="application/json",
-        Metadata={"search_type": "journal"},
-    )
+    # s3 = boto3.client("s3")
+    # s3.put_object(
+    #     Body=result_bytes,
+    #     Bucket=bucket,
+    #     Key=result_key,
+    #     ContentType="application/json",
+    #     Metadata={"search_type": "journal"},
+    # )
 
 
 async def get_scopes(db_session: Session, api: str) -> List[SpireOAuthScopes]:

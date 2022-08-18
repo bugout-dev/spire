@@ -14,9 +14,10 @@ from dateutil.parser import parse as parse_datetime
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk
-from sqlalchemy import and_, or_, not_
+from sqlalchemy import and_, or_, not_, func
 from sqlalchemy.sql.elements import BooleanClauseList
-from sqlalchemy.orm import Session, Query
+from sqlalchemy.orm import Session, Query 
+
 
 from . import actions
 from .data import JournalSpec, JournalEntryResponse
@@ -26,6 +27,8 @@ from .models import Journal, JournalEntry, JournalEntryTag
 from ..utils.settings import DEFAULT_JOURNALS_ES_INDEX, BULK_CHUNKSIZE
 
 logger = logging.getLogger(__name__)
+# add sqlalchemy logger
+logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 
 class IndexAlreadyExists(Exception):
@@ -734,6 +737,40 @@ def search_database(
         query = query.order_by(JournalEntry.created_at.desc())
     num_entries = query.count()
     query = query.limit(size).offset(start)
+
+    journal_entries_temp = query.cte(name="journal_entries_temp")
+
+    entries_ids_with_tags = (
+        db_session.query(journal_entries_temp.c.id, JournalEntryTag.tag).join(
+            JournalEntryTag,
+            JournalEntryTag.journal_entry_id == journal_entries_temp.c.id,
+        )
+    ).cte(name="entries_ids_with_tags")
+
+    aggregated_tags = (
+        db_session.query(
+            entries_ids_with_tags.c.id,
+            func.array_agg(entries_ids_with_tags.c.tag).label("tags"),
+        )
+        .group_by(entries_ids_with_tags.c.id)
+        .cte(name="aggregated_tags")
+    )
+
+    query = db_session.query(
+        journal_entries_temp.c.id.label("id"),
+        aggregated_tags.c.tags.label("tags"),
+        journal_entries_temp.c.title.label("title"),
+        journal_entries_temp.c.content.label("content"),
+        journal_entries_temp.c.context_id.label("context_id"),
+        journal_entries_temp.c.context_url.label("context_url"),
+        journal_entries_temp.c.context_type.label("context_type"),
+        journal_entries_temp.c.version_id.label("version_id"),
+        journal_entries_temp.c.created_at.label("created_at"),
+        journal_entries_temp.c.updated_at.label("updated_at"),
+    ).join(aggregated_tags, journal_entries_temp.c.id == aggregated_tags.c.id)
+
+
+
     rows = query.all()
 
     return num_entries, rows

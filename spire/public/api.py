@@ -4,7 +4,7 @@ Public endpoints.
 FastAPI doesn't like Generic Routes https://github.com/tiangolo/fastapi/issues/913#issuecomment
 """
 import logging
-from typing import List, Optional
+from typing import List, Optional, Any
 from uuid import UUID
 
 from bugout.data import (
@@ -195,7 +195,7 @@ async def get_public_journal_entry_handler(
 
 
 @app_public.get(
-    "/{journal_id}/search", tags=["public journals"], response_model=BugoutSearchResults
+    "/{journal_id}/search", tags=["public journals"], response_model=Any
 )
 async def search_public_journal_handler(
     journal_id: UUID = Path(...),
@@ -205,7 +205,7 @@ async def search_public_journal_handler(
     offset: int = Query(0),
     content: bool = Query(True),
     db_session: Session = Depends(db.yield_connection_from_env),
-) -> BugoutSearchResults:
+) -> Any:
     """
     Executes a search query against the given public journal.
     """
@@ -215,14 +215,16 @@ async def search_public_journal_handler(
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
 
-    result = bugout_api.search(
-        token=public_user.restricted_token_id,
-        journal_id=public_journal.journal_id,
-        query=q,
-        filters=filters,
-        limit=limit,
-        offset=offset,
-        content=content,
-    )
+    # result = bugout_api.search(
+    #     token=public_user.restricted_token_id,
+    #     journal_id=public_journal.journal_id,
+    #     query=q,
+    #     filters=filters,
+    #     limit=limit,
+    #     offset=offset,
+    #     content=content,
+    # )
+
+    result = []
 
     return result
