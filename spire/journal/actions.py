@@ -612,6 +612,21 @@ async def get_journal_entries(
     return query.all()
 
 
+async def get_journal_entry(
+    db_session: Session, journal_entry_id: UUID
+) -> Optional[JournalEntry]:
+    """
+    Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
+    found in the database.
+    """
+    journal_entry = (
+        db_session.query(JournalEntry)
+        .filter(JournalEntry.id == journal_entry_id)
+        .one_or_none()
+    )
+    return journal_entry
+
+
 async def delete_journal_entry(
     db_session: Session,
     journal_spec: JournalSpec,
