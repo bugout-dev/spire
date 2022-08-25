@@ -832,18 +832,12 @@ async def get_journal_most_used_tags(
 
 async def create_journal_entry_tags(
     db_session: Session,
-    journal_spec: JournalSpec,
+    journal: Journal,
     tag_request: CreateJournalEntryTagRequest,
-    user_group_id_list: List[str] = None,
 ) -> List[JournalEntryTag]:
     """
     Tags the given journal entry.
     """
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     query = (
         db_session.query(JournalEntry)
         .filter(JournalEntry.journal_id == journal.id)
@@ -900,16 +894,10 @@ async def get_journal_entry_tags(
 
 async def update_journal_entry_tags(
     db_session: Session,
-    journal_spec: JournalSpec,
+    journal: Journal,
     entry_id: UUID,
     tag_request: CreateJournalEntryTagRequest,
-    user_group_id_list: List[str] = None,
 ) -> List[JournalEntryTag]:
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     query = (
         db_session.query(JournalEntry)
         .filter(JournalEntry.journal_id == journal.id)

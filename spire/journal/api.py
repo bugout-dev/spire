@@ -66,7 +66,7 @@ from .data import (
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
-from .models import Journal
+from .models import Journal, JournalEntryTag
 from . import search
 from ..utils.settings import (
     DEFAULT_JOURNALS_ES_INDEX,
@@ -1219,7 +1219,6 @@ async def update_entry_content(
         {JournalEntryScopes.UPDATE},
     )
 
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
     es_index = journal.search_index
 
     try:
@@ -1242,33 +1241,28 @@ async def update_entry_content(
     journal_entry.content = api_request.content
     db_session.add(journal_entry)
     db_session.commit()
+
+    tag_objects: List[JournalEntryTag] = []
     try:
         if tags_action == EntryUpdateTagActions.replace:
             tag_request = CreateJournalEntryTagRequest(
                 journal_entry_id=entry_id, tags=api_request.tags
             )
-            await actions.update_journal_entry_tags(
+            tag_objects = await actions.update_journal_entry_tags(
                 db_session,
-                journal_spec,
+                journal,
                 entry_id,
                 tag_request,
-                user_group_id_list=request.state.user_group_id_list,
             )
         elif tags_action == EntryUpdateTagActions.merge:
             tag_request = CreateJournalEntryTagRequest(
                 journal_entry_id=entry_id, tags=api_request.tags
             )
-            await actions.create_journal_entry_tags(
+            tag_objects = await actions.create_journal_entry_tags(
                 db_session,
-                journal_spec,
+                journal,
                 tag_request,
-                user_group_id_list=request.state.user_group_id_list,
             )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
     except actions.EntryNotFound:
         logger.error(
             f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
@@ -1278,9 +1272,6 @@ async def update_entry_content(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    tag_objects = await actions.get_journal_entry_tags(
-        db_session, journal_spec, entry_id, request.state.user_group_id_list
-    )
     tags = [tag.tag for tag in tag_objects]
     if es_index is not None:
         try:
@@ -1693,7 +1684,7 @@ async def create_tags(
     """
     Create tags for a journal entry.
     """
-    ensure_journal_permission(
+    journal = ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1724,15 +1715,9 @@ async def create_tags(
     try:
         await actions.create_journal_entry_tags(
             db_session,
-            journal_spec,
+            journal,
             tag_request,
-            user_group_id_list=request.state.user_group_id_list,
         )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
     except actions.EntryNotFound:
         logger.error(
             f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
@@ -1873,16 +1858,10 @@ async def update_tags(
     try:
         tags = await actions.update_journal_entry_tags(
             db_session,
-            journal_spec,
+            journal,
             entry_id,
             tag_request,
-            user_group_id_list=request.state.user_group_id_list,
         )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404, detail="Journal not found")
     except actions.EntryNotFound:
         logger.error(
             f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
