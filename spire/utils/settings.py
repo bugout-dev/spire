@@ -20,6 +20,24 @@ except:
 
 THREAD_WORKERS = int(os.getenv("THREAD_WORKERS", 2))
 
+# Database
+SPIRE_DB_URI = os.environ.get("SPIRE_DB_URI")
+if SPIRE_DB_URI is None:
+    raise ValueError("SPIRE_DB_URI environment variable not set")
+SPIRE_DB_URI_READ_ONLY = os.environ.get("SPIRE_DB_URI_READ_ONLY")
+if SPIRE_DB_URI_READ_ONLY is None:
+    raise ValueError("SPIRE_DB_URI_READ_ONLY environment variable not set")
+
+SPIRE_DB_POOL_RECYCLE_SECONDS_RAW = os.environ.get("SPIRE_DB_POOL_RECYCLE_SECONDS")
+SPIRE_DB_POOL_RECYCLE_SECONDS = 1800
+try:
+    if SPIRE_DB_POOL_RECYCLE_SECONDS_RAW is not None:
+        SPIRE_DB_POOL_RECYCLE_SECONDS = int(SPIRE_DB_POOL_RECYCLE_SECONDS_RAW)
+except:
+    raise ValueError(
+        f"SPIRE_DB_POOL_RECYCLE_SECONDS must be an integer: {SPIRE_DB_POOL_RECYCLE_SECONDS_RAW}"
+    )
+
 BUGOUT_SPIRE_THREAD_DB_POOL_SIZE = 2
 BUGOUT_SPIRE_THREAD_DB_POOL_SIZE_RAW = os.environ.get(
     "BUGOUT_SPIRE_THREAD_DB_POOL_SIZE"
@@ -69,7 +87,7 @@ GITHUB_SUMMARY_BUCKET = os.environ.get("AWS_S3_GITHUB_SUMMARY_BUCKET")
 GITHUB_SUMMARY_PREFIX = os.environ.get("AWS_S3_GITHUB_SUMMARY_PREFIX", "").rstrip("/")
 
 GITHUB_SECRET_B64 = os.environ.get("BUGOUT_GITHUB_PRIVATE_KEY_BASE64", "")
-GITHUB_KEYFILE: Union[Any] = os.environ.get("BUGOUT_GITHUB_PRIVATE_KEY_FILE")
+GITHUB_KEYFILE: Any = os.environ.get("BUGOUT_GITHUB_PRIVATE_KEY_FILE")
 GITHUB_APP_ID = os.environ.get("BUGOUT_GITHUB_APP_ID")
 GITHUB_WEBHOOK_SECRET = os.environ.get("BUGOUT_GITHUB_WEBHOOK_SECRET")
 

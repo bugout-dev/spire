@@ -2,8 +2,7 @@
 Spire database connection
 """
 from contextlib import contextmanager
-from datetime import time
-import os
+from typing import Optional
 
 import redis
 from sqlalchemy import create_engine
@@ -11,6 +10,9 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.sql.expression import true
 
 from .utils.settings import (
+    SPIRE_DB_URI,
+    SPIRE_DB_URI_READ_ONLY,
+    SPIRE_DB_POOL_RECYCLE_SECONDS,
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
     BUGOUT_REDIS_URL,
@@ -19,14 +21,28 @@ from .utils.settings import (
     BUGOUT_HUMBUG_REDIS_CONNECTIONS_PER_PROCESS,
 )
 
-connection_str = os.environ.get("SPIRE_DB_URI")
-if connection_str is None:
-    raise ValueError("SPIRE_DB_URI environment variable not set")
 
-engine = create_engine(
-    connection_str,
+def create_spire_engine(
+    url: Optional[str],
+    pool_size: int,
+    statement_timeout: int,
+    pool_recycle: int = SPIRE_DB_POOL_RECYCLE_SECONDS,
+):
+    # Pooling: https://docs.sqlalchemy.org/en/14/core/pooling.html#sqlalchemy.pool.QueuePool
+    # Statement timeout: https://stackoverflow.com/a/44936982
+    return create_engine(
+        url=url,
+        pool_size=pool_size,
+        pool_recycle=pool_recycle,
+        connect_args={"options": f"-c statement_timeout={statement_timeout}"},
+    )
+
+
+engine = create_spire_engine(
+    url=SPIRE_DB_URI,
     pool_size=BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
-    max_overflow=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    statement_timeout=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    pool_recycle=SPIRE_DB_POOL_RECYCLE_SECONDS,
 )
 SessionLocal = sessionmaker(bind=engine)
 
@@ -43,6 +59,30 @@ def yield_connection_from_env() -> Session:
         session.close()
 
 
+# Read only database
+RO_engine = create_spire_engine(
+    url=SPIRE_DB_URI_READ_ONLY,
+    pool_size=BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
+    statement_timeout=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    pool_recycle=SPIRE_DB_POOL_RECYCLE_SECONDS,
+)
+RO_SessionLocal = sessionmaker(bind=RO_engine)
+
+
+def yield_db_read_only_session() -> Session:
+    """
+    Yields read only database connection (created using environment variables).
+    As per FastAPI docs:
+    https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency
+    """
+    session = RO_SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+# Redis
 RedisPool = redis.ConnectionPool.from_url(
     f"redis://:{BUGOUT_REDIS_PASSWORD}@{BUGOUT_REDIS_URL}",
     max_connections=BUGOUT_HUMBUG_REDIS_CONNECTIONS_PER_PROCESS,
