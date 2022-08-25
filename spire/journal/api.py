@@ -66,6 +66,7 @@ from .data import (
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
+from .models import Journal
 from . import search
 from ..utils.settings import (
     DEFAULT_JOURNALS_ES_INDEX,
@@ -144,7 +145,7 @@ def ensure_journal_permission(
     user_group_ids: List[str],
     journal_id: UUID,
     required_scopes: Set[Union[JournalScopes, JournalEntryScopes]],
-) -> None:
+) -> Journal:
     """
     Checks if the given user (who is a member of the groups specified by user_group_ids) holds the
     given scope on the journal specified by journal_id.
@@ -153,7 +154,7 @@ def ensure_journal_permission(
     otherwise.
     """
     try:
-        acl = actions.acl_auth(db_session, user_id, user_group_ids, journal_id)
+        journal, acl = actions.acl_auth(db_session, user_id, user_group_ids, journal_id)
         actions.acl_check(acl, required_scopes)
     except actions.PermissionsNotFound:
         logger.error(
@@ -166,6 +167,8 @@ def ensure_journal_permission(
             f"Error checking permissions for user (id={user_id}) in journal (id={journal_id})"
         )
         raise HTTPException(status_code=500)
+
+    return journal
 
 
 @app.get("/version", response_model=VersionResponse)
@@ -521,29 +524,13 @@ async def get_journal(
 
     :param journal_id: Journal ID to extract permissions from
     """
-    ensure_journal_permission(
+    journal = ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
         journal_id,
         {JournalScopes.READ},
     )
-
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    try:
-        journal = await actions.find_journal(
-            db_session=db_session,
-            journal_spec=journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error retrieving journal: {str(e)}")
-        raise HTTPException(status_code=500)
 
     return JournalResponse(
         id=journal.id,
@@ -672,22 +659,6 @@ async def update_journal_stats(
         journal_id,
         {JournalScopes.READ},
     )
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-
-    try:
-        journal = await actions.find_journal(
-            db_session=db_session,
-            journal_spec=journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error retrieving journal: {str(e)}")
-        raise HTTPException(status_code=500)
 
     drones_statistics = requests.post(
         f"{DRONES_URL}/jobs/stats_update",
@@ -866,7 +837,7 @@ async def create_journal_entry(
     """
     Creates a journal entry
     """
-    ensure_journal_permission(
+    journal = ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -890,20 +861,6 @@ async def create_journal_entry(
         created_at = created_at_utc.replace(tzinfo=None)
         creation_request.created_at = created_at
 
-    try:
-        journal = await actions.find_journal(
-            db_session=db_session,
-            journal_spec=journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error retrieving journal: {str(e)}")
-        raise HTTPException(status_code=500)
     es_index = journal.search_index
 
     try:
@@ -1254,7 +1211,7 @@ async def update_entry_content(
     Modifies the content of a journal entry through a simple override.
     If tags in not empty, update them - delete old and insert new.
     """
-    ensure_journal_permission(
+    journal = ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1263,20 +1220,6 @@ async def update_entry_content(
     )
 
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    try:
-        journal = await actions.find_journal(
-            db_session=db_session,
-            journal_spec=journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error retrieving journal: {str(e)}")
-        raise HTTPException(status_code=500)
     es_index = journal.search_index
 
     try:

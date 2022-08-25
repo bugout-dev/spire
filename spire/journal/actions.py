@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Set, Optional, Union
+from typing import Any, Dict, List, Set, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 import boto3
@@ -86,7 +86,7 @@ class InvalidParameters(ValueError):
 
 def acl_auth(
     db_session: Session, user_id: str, user_group_id_list: List[str], journal_id: UUID
-) -> Dict[HolderType, List[str]]:
+) -> Tuple[Journal, Dict[HolderType, List[str]]]:
     """
     Checks the authorization in JournalPermissions model. If it represents
     a verified user or group user belongs to and generates dictionary with
@@ -97,8 +97,9 @@ def acl_auth(
         HolderType.group: [],
     }
 
-    journal_permissions = (
-        db_session.query(JournalPermissions)
+    objects = (
+        db_session.query(Journal, JournalPermissions)
+        .join(Journal, Journal.id == JournalPermissions.journal_id)
         .filter(JournalPermissions.journal_id == journal_id)
         .filter(
             or_(
@@ -109,7 +110,20 @@ def acl_auth(
         .all()
     )
 
-    if not journal_permissions:
+    if len(objects) == 0:
+        raise PermissionsNotFound("No permissions for requested information")
+
+    journal = objects[0][0]
+    journal_permissions = []
+    for object in objects:
+        if object[0] != journal:
+            logger.error(
+                f"Unexpected journal {object[0].id} in journal permissions for journal {journal_id}"
+            )
+            raise Exception("Unexpected journal in journal permissions")
+        journal_permissions.append(object[1])
+
+    if len(journal_permissions) == 0:
         raise PermissionsNotFound("No permissions for requested information")
 
     acl[HolderType.user].extend(
@@ -127,7 +141,7 @@ def acl_auth(
         ]
     )
 
-    return acl
+    return journal, acl
 
 
 def acl_check(
