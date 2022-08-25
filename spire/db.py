@@ -7,12 +7,12 @@ from typing import Optional
 import redis
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.sql.expression import true
 
 from .utils.settings import (
     SPIRE_DB_URI,
     SPIRE_DB_URI_READ_ONLY,
     SPIRE_DB_POOL_RECYCLE_SECONDS,
+    SPIRE_DB_STATEMENT_TIMEOUT_MILLIS,
     BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
     BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
     BUGOUT_REDIS_URL,
@@ -25,6 +25,7 @@ from .utils.settings import (
 def create_spire_engine(
     url: Optional[str],
     pool_size: int,
+    max_overflow: int,
     statement_timeout: int,
     pool_recycle: int = SPIRE_DB_POOL_RECYCLE_SECONDS,
 ):
@@ -34,6 +35,7 @@ def create_spire_engine(
         url=url,
         pool_size=pool_size,
         pool_recycle=pool_recycle,
+        max_overflow=max_overflow,
         connect_args={"options": f"-c statement_timeout={statement_timeout}"},
     )
 
@@ -41,7 +43,8 @@ def create_spire_engine(
 engine = create_spire_engine(
     url=SPIRE_DB_URI,
     pool_size=BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
-    statement_timeout=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    max_overflow=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    statement_timeout=SPIRE_DB_STATEMENT_TIMEOUT_MILLIS,
     pool_recycle=SPIRE_DB_POOL_RECYCLE_SECONDS,
 )
 SessionLocal = sessionmaker(bind=engine)
@@ -63,7 +66,8 @@ def yield_connection_from_env() -> Session:
 RO_engine = create_spire_engine(
     url=SPIRE_DB_URI_READ_ONLY,
     pool_size=BUGOUT_SPIRE_THREAD_DB_POOL_SIZE,
-    statement_timeout=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    max_overflow=BUGOUT_SPIRE_THREAD_DB_MAX_OVERFLOW,
+    statement_timeout=SPIRE_DB_STATEMENT_TIMEOUT_MILLIS,
     pool_recycle=SPIRE_DB_POOL_RECYCLE_SECONDS,
 )
 RO_SessionLocal = sessionmaker(bind=RO_engine)
