@@ -105,6 +105,12 @@ class JournalEntry(Base):  # type: ignore
     context_type = Column(String, server_default="bugout", nullable=False)
 
     version_id = Column(Integer, nullable=False)
+    locked_by = Column(
+        String,
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     created_at = Column(
         DateTime(timezone=True), server_default=utcnow(), nullable=False, index=True
     )

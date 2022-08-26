@@ -66,6 +66,12 @@ class EntryNotFound(Exception):
     """
 
 
+class EntryLocked(Exception):
+    """
+    Raised on actions when entry is not released for editing by other users.
+    """
+
+
 class PermissionsNotFound(Exception):
     """
     Raised on actions that involve permissions for journal or entry which are not present in the database.
@@ -111,17 +117,18 @@ def acl_auth(
     )
 
     if len(objects) == 0:
-        raise PermissionsNotFound("No permissions for requested information")
+        raise PermissionsNotFound(f"No permissions for requested information")
 
     journal = objects[0][0]
     journal_permissions = []
     for object in objects:
-        if object[0] != journal:
+        if object[0] != journal != journal_id:
             logger.error(
                 f"Unexpected journal {object[0].id} in journal permissions for journal {journal_id}"
             )
             raise Exception("Unexpected journal in journal permissions")
-        journal_permissions.append(object[1])
+        if object[1] is not None:
+            journal_permissions.append(object[1])
 
     if len(journal_permissions) == 0:
         raise PermissionsNotFound("No permissions for requested information")
@@ -630,8 +637,7 @@ async def get_journal_entry(
     db_session: Session, journal_entry_id: UUID
 ) -> Optional[JournalEntry]:
     """
-    Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
-    found in the database.
+    Returns a journal entry by its id.
     """
     journal_entry = (
         db_session.query(JournalEntry)
@@ -641,20 +647,58 @@ async def get_journal_entry(
     return journal_entry
 
 
+async def get_journal_entry_with_tags(
+    db_session: Session, journal_entry_id: UUID
+) -> Tuple[JournalEntry, List[JournalEntryTag]]:
+    """
+    Returns a journal entry by its id with tags.
+    """
+    objects = (
+        db_session.query(JournalEntry, JournalEntryTag)
+        .join(
+            JournalEntryTag,
+            JournalEntryTag.journal_entry_id == JournalEntry.id,
+            isouter=True,
+        )
+        .filter(JournalEntry.id == journal_entry_id)
+        .all()
+    )
+    if len(objects) == 0:
+        raise EntryNotFound("Entry not found")
+
+    entry = objects[0][0]
+    tags: List[JournalEntryTag] = []
+    for object in objects:
+        if object[1] is not None:
+            tags.append(object[1])
+    return entry, tags
+
+
+async def delete_journal_entry_lock(
+    db_session: Session, journal_entry_id: UUID
+) -> None:
+    """
+    Releases journal entry lock.
+    """
+    updated_rows = (
+        db_session.query(JournalEntry)
+        .filter(JournalEntry.id == journal_entry_id)
+        .update({JournalEntry.locked_by: None})
+    )
+    db_session.commit()
+
+    if updated_rows == 0:
+        raise EntryNotFound(f"There is no entry with id: {journal_entry_id} to unlock")
+
+
 async def delete_journal_entry(
     db_session: Session,
-    journal_spec: JournalSpec,
+    journal: Journal,
     entry_id: Optional[UUID],
-    user_group_id_list: List[str] = None,
 ) -> JournalEntry:
     """
     Deletes the given journal entry.
     """
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     query = (
         db_session.query(JournalEntry)
         .filter(JournalEntry.journal_id == journal.id)
