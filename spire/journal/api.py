@@ -1210,7 +1210,10 @@ async def update_entry_content(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    if journal_entry.locked_by is not None:
+    if (
+        journal_entry.locked_by is not None
+        and journal_entry.locked_by != request.state.user_id
+    ):
         return JournalEntryContent(
             title=journal_entry.title,
             content=journal_entry.content,
@@ -1298,6 +1301,7 @@ async def delete_entry_lock(
 ) -> JournalEntryLockResponse:
     """
     Releases journal entry lock.
+    Entry may be unlocked by other user.
     """
     ensure_journal_permission(
         db_session,

@@ -675,7 +675,8 @@ async def get_journal_entry_with_tags(
 
 
 async def delete_journal_entry_lock(
-    db_session: Session, journal_entry_id: UUID
+    db_session: Session,
+    journal_entry_id: UUID,
 ) -> None:
     """
     Releases journal entry lock.
