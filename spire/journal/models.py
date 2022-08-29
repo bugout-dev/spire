@@ -236,7 +236,7 @@ class JournalTTL(Base):  # type: ignore
     journal_id = Column(
         UUID(as_uuid=True),
         ForeignKey("journals.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
     name = Column(VARCHAR(256), nullable=False)
     conditions = Column(JSONB, nullable=False)

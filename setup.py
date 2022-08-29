@@ -72,4 +72,5 @@ setup(
         ],
         "distribute": ["setuptools", "twine", "wheel"],
     },
+    entry_points={"console_scripts": ["journals=spire.journal.cli:main"]},
 )

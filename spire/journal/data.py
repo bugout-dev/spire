@@ -51,6 +51,7 @@ class StatsTypes(Enum):
 
 class RuleActions(Enum):
     remove = "remove"
+    unlock = "unlock"
 
 
 class CreateJournalAPIRequest(BaseModel):
@@ -283,7 +284,7 @@ class ContextSpec(BaseModel):
 
 class JournalTTLRuleResponse(BaseModel):
     id: int
-    journal_id: uuid.UUID
+    journal_id: Optional[uuid.UUID]
     name: str
     conditions: Dict[str, Any]
     action: RuleActions

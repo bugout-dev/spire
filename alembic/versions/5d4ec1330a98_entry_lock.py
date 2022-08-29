@@ -21,6 +21,9 @@ def upgrade():
     op.add_column('journal_entries', sa.Column('locked_by', sa.String(), nullable=True))
     op.create_index(op.f('ix_journal_entries_locked_by'), 'journal_entries', ['locked_by'], unique=False)
     op.create_unique_constraint('uq_journal_entries_id_locked_by', 'journal_entries', ['id', 'locked_by'])
+    op.alter_column('journal_ttls', 'journal_id',
+               existing_type=postgresql.UUID(),
+               nullable=True)
     # ### end Alembic commands ###
 
 
@@ -29,4 +32,7 @@ def downgrade():
     op.drop_constraint('uq_journal_entries_id_locked_by', 'journal_entries', type_='unique')
     op.drop_index(op.f('ix_journal_entries_locked_by'), table_name='journal_entries')
     op.drop_column('journal_entries', 'locked_by')
+    op.alter_column('journal_ttls', 'journal_id',
+               existing_type=postgresql.UUID(),
+               nullable=False)
     # ### end Alembic commands ###
