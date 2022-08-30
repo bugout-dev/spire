@@ -41,7 +41,6 @@ from .data import (
     JournalSpec,
     JournalResponse,
     JournalEntryResponse,
-    JournalEntryLockResponse,
     JournalEntryTagsResponse,
     JournalEntryIds,
     JournalStatisticsSpecs,
@@ -870,6 +869,7 @@ async def create_journal_entry(
             db_session,
             creation_request,
             user_group_id_list=request.state.user_group_id_list,
+            locked_by=request.state.user_id,
         )
     except actions.JournalNotFound:
         logger.error(
@@ -917,6 +917,7 @@ async def create_journal_entry(
         updated_at=journal_entry.updated_at,
         context_url=journal_entry.context_url,
         context_type=journal_entry.context_type,
+        locked_by=journal_entry.locked_by,
     )
 
 
@@ -1218,7 +1219,7 @@ async def update_entry_content(
             title=journal_entry.title,
             content=journal_entry.content,
             tags=[tag.tag for tag in tag_objects],
-            locked_by=request.state.user_id,
+            locked_by=journal_entry.locked_by,
         )
 
     journal_entry.title = api_request.title
@@ -1243,11 +1244,12 @@ async def update_entry_content(
             tag_request = CreateJournalEntryTagRequest(
                 journal_entry_id=entry_id, tags=api_request.tags
             )
-            updated_tag_objects = await actions.create_journal_entry_tags(
+            new_tag_objects = await actions.create_journal_entry_tags(
                 db_session,
                 journal,
                 tag_request,
             )
+            updated_tag_objects = tag_objects + new_tag_objects
     except actions.EntryNotFound:
         logger.error(
             f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
@@ -1291,14 +1293,14 @@ async def update_entry_content(
 @app.delete(
     "/{journal_id}/entries/{entry_id}/lock",
     tags=["entries"],
-    response_model=JournalEntryLockResponse,
+    response_model=JournalEntryContent,
 )
 async def delete_entry_lock(
     request: Request,
     journal_id: UUID = Path(...),
     entry_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
-) -> JournalEntryLockResponse:
+) -> JournalEntryContent:
     """
     Releases journal entry lock.
     Entry may be unlocked by other user.
@@ -1311,6 +1313,13 @@ async def delete_entry_lock(
         {JournalEntryScopes.UPDATE},
     )
     try:
+        journal_entry, tag_objects = await actions.get_journal_entry_with_tags(
+            db_session=db_session, journal_entry_id=entry_id
+        )
+        if journal_entry is None:
+            raise actions.EntryNotFound(
+                f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
+            )
         await actions.delete_journal_entry_lock(
             db_session=db_session,
             journal_entry_id=entry_id,
@@ -1320,10 +1329,11 @@ async def delete_entry_lock(
     except Exception:
         raise HTTPException(status_code=500)
 
-    return JournalEntryLockResponse(
-        journal_id=journal_id,
-        entry_id=entry_id,
-        locked_by=None,
+    return JournalEntryContent(
+        title=journal_entry.title,
+        content=journal_entry.content,
+        tags=[tag.tag for tag in tag_objects],
+        locked_by=journal_entry.locked_by,
     )
 
 

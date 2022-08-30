@@ -134,13 +134,7 @@ class JournalEntryResponse(BaseModel):
     context_url: Optional[str]
     context_type: Optional[str]
     context_id: Optional[str] = None
-    locked_by: Optional[str]
-
-
-class JournalEntryLockResponse(BaseModel):
-    journal_id: uuid.UUID
-    entry_id: uuid.UUID
-    locked_by: Optional[str]
+    locked_by: Optional[str] = None
 
 
 class JournalStatisticsResponse(BaseModel):

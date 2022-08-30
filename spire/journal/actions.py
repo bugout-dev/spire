@@ -486,6 +486,7 @@ async def create_journal_entry(
     db_session: Session,
     entry_request: CreateJournalEntryRequest,
     user_group_id_list: list = None,
+    locked_by: Optional[str] = None,
 ) -> JournalEntry:
     """
     Creates an entry in a given journal. Raises InvalidJournalSpec error if the journal is
@@ -506,6 +507,7 @@ async def create_journal_entry(
         context_url=entry_request.context_url,
         context_type=entry_request.context_type,
         created_at=entry_request.created_at,
+        locked_by=locked_by,
     )
     db_session.add(entry)
     db_session.commit()
