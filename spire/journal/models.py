@@ -83,9 +83,6 @@ class Journal(Base):  # type: ignore
 
 class JournalEntry(Base):  # type: ignore
     __tablename__ = "journal_entries"
-    __table_args__ = (
-        UniqueConstraint("id", "locked_by", name="uq_journal_entries_id_locked_by"),
-    )
 
     id = Column(
         UUID(as_uuid=True),
