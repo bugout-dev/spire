@@ -67,7 +67,7 @@ from .data import (
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
-from .models import Journal, JournalEntryTag
+from .models import Journal, JournalEntryLock, JournalEntryTag
 from . import search
 from ..utils.settings import (
     DEFAULT_JOURNALS_ES_INDEX,
@@ -865,10 +865,10 @@ async def create_journal_entry(
     es_index = journal.search_index
 
     try:
-        journal_entry = await actions.create_journal_entry(
-            db_session,
-            creation_request,
-            user_group_id_list=request.state.user_group_id_list,
+        journal_entry, entry_lock = await actions.create_journal_entry(
+            db_session=db_session,
+            journal=journal,
+            entry_request=creation_request,
             locked_by=request.state.user_id,
         )
     except actions.JournalNotFound:
@@ -917,7 +917,7 @@ async def create_journal_entry(
         updated_at=journal_entry.updated_at,
         context_url=journal_entry.context_url,
         context_type=journal_entry.context_type,
-        locked_by=journal_entry.locked_by,
+        locked_by=entry_lock.locked_by,
     )
 
 
@@ -1081,7 +1081,11 @@ async def get_entry(
     )
 
     try:
-        journal_entry, tag_objects = await actions.get_journal_entry_with_tags(
+        (
+            journal_entry,
+            tag_objects,
+            entry_lock,
+        ) = await actions.get_journal_entry_with_tags(
             db_session=db_session, journal_entry_id=entry_id
         )
     except actions.EntryNotFound:
@@ -1106,7 +1110,7 @@ async def get_entry(
         updated_at=journal_entry.updated_at,
         context_url=journal_entry.context_url,
         context_type=journal_entry.context_type,
-        locked_by=journal_entry.locked_by,
+        locked_by=None if entry_lock is None else entry_lock.locked_by,
     )
 
 
@@ -1198,7 +1202,11 @@ async def update_entry_content(
     es_index = journal.search_index
 
     try:
-        journal_entry, tag_objects = await actions.get_journal_entry_with_tags(
+        (
+            journal_entry,
+            tag_objects,
+            entry_lock,
+        ) = await actions.get_journal_entry_with_tags(
             db_session=db_session, journal_entry_id=entry_id
         )
         if journal_entry is None:
@@ -1211,22 +1219,26 @@ async def update_entry_content(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    if (
-        journal_entry.locked_by is not None
-        and journal_entry.locked_by != request.state.user_id
-    ):
+    if entry_lock is not None and entry_lock.locked_by != request.state.user_id:
         return JournalEntryContent(
             title=journal_entry.title,
             content=journal_entry.content,
             tags=[tag.tag for tag in tag_objects],
-            locked_by=journal_entry.locked_by,
+            locked_by=entry_lock.locked_by,
         )
 
-    journal_entry.title = api_request.title
-    journal_entry.content = api_request.content
-    journal_entry.locked_by = request.state.user_id
-    db_session.add(journal_entry)
-    db_session.commit()
+    try:
+        journal_entry, entry_lock = await actions.update_journal_entry(
+            db_session=db_session,
+            new_title=api_request.title,
+            new_content=api_request.content,
+            locked_by=request.state.user_id,
+            journal_entry=journal_entry,
+            entry_lock=entry_lock,
+        )
+    except Exception as e:
+        logger.error(f"Error updating journal entry: {str(e)}")
+        raise HTTPException(status_code=500)
 
     updated_tag_objects: List[JournalEntryTag] = []
     try:
@@ -1286,7 +1298,7 @@ async def update_entry_content(
         title=journal_entry.title,
         content=journal_entry.content,
         tags=tags,
-        locked_by=request.state.user_id,
+        locked_by=entry_lock.locked_by,
     )
 
 
@@ -1313,27 +1325,31 @@ async def delete_entry_lock(
         {JournalEntryScopes.UPDATE},
     )
     try:
-        journal_entry, tag_objects = await actions.get_journal_entry_with_tags(
+        (
+            journal_entry,
+            tag_objects,
+            entry_lock,
+        ) = await actions.get_journal_entry_with_tags(
             db_session=db_session, journal_entry_id=entry_id
         )
         if journal_entry is None:
             raise actions.EntryNotFound(
                 f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
             )
-        await actions.delete_journal_entry_lock(
-            db_session=db_session,
-            journal_entry_id=entry_id,
-        )
+        if entry_lock is not None:
+            db_session.delete(entry_lock)
+            db_session.commit()
     except actions.EntryNotFound:
         raise HTTPException(status_code=404, detail="Entry not found")
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
     return JournalEntryContent(
         title=journal_entry.title,
         content=journal_entry.content,
         tags=[tag.tag for tag in tag_objects],
-        locked_by=journal_entry.locked_by,
+        locked_by=None,
     )
 
 

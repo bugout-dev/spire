@@ -105,11 +105,6 @@ class JournalEntry(Base):  # type: ignore
     context_type = Column(String, server_default="bugout", nullable=False)
 
     version_id = Column(Integer, nullable=False)
-    locked_by = Column(
-        String,
-        nullable=True,
-        index=True,
-    )
     created_at = Column(
         DateTime(timezone=True), server_default=utcnow(), nullable=False, index=True
     )
@@ -126,6 +121,38 @@ class JournalEntry(Base):  # type: ignore
     )
 
     __mapper_args__ = {"version_id_col": version_id}
+
+
+class JournalEntryLock(Base):  # type: ignore
+    __tablename__ = "journal_entry_locks"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        unique=True,
+        nullable=False,
+    )
+    journal_entry_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "journal_entries.id",
+            ondelete="CASCADE",
+        ),
+        unique=True,
+    )
+    locked_by = Column(
+        String,
+        nullable=False,
+        index=True,
+    )
+    locked_at = Column(
+        DateTime(timezone=True),
+        server_default=utcnow(),
+        onupdate=utcnow(),
+        nullable=False,
+        index=True,
+    )
 
 
 class JournalEntryTag(Base):  # type: ignore
