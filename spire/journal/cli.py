@@ -407,7 +407,7 @@ def main() -> None:
     parser_rules_add = subcommands_rules.add_parser(
         "add", description="Add rule for provided journal"
     )
-    parser_rules_add.add_argument("-j", "--journal", required=True, help="Journal ID")
+    parser_rules_add.add_argument("-j", "--journal", required=False, help="Journal ID")
     parser_rules_add.add_argument("-n", "--name", required=True, help="Rule name")
     parser_rules_add.add_argument(
         "-c",

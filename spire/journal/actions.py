@@ -1,13 +1,14 @@
 """
 Journal-related actions in Spire
 """
+from asyncio import streams
 from datetime import date, timedelta, datetime
 import calendar
 import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Set, Optional, Union
+from typing import Any, Dict, List, Set, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 import boto3
@@ -37,6 +38,7 @@ from .data import (
 from .models import (
     Journal,
     JournalEntry,
+    JournalEntryLock,
     JournalEntryTag,
     JournalPermissions,
     HolderType,
@@ -66,6 +68,12 @@ class EntryNotFound(Exception):
     """
 
 
+class EntryLocked(Exception):
+    """
+    Raised on actions when entry is not released for editing by other users.
+    """
+
+
 class PermissionsNotFound(Exception):
     """
     Raised on actions that involve permissions for journal or entry which are not present in the database.
@@ -86,7 +94,7 @@ class InvalidParameters(ValueError):
 
 def acl_auth(
     db_session: Session, user_id: str, user_group_id_list: List[str], journal_id: UUID
-) -> Dict[HolderType, List[str]]:
+) -> Tuple[Journal, Dict[HolderType, List[str]]]:
     """
     Checks the authorization in JournalPermissions model. If it represents
     a verified user or group user belongs to and generates dictionary with
@@ -97,8 +105,9 @@ def acl_auth(
         HolderType.group: [],
     }
 
-    journal_permissions = (
-        db_session.query(JournalPermissions)
+    objects = (
+        db_session.query(Journal, JournalPermissions)
+        .join(Journal, Journal.id == JournalPermissions.journal_id)
         .filter(JournalPermissions.journal_id == journal_id)
         .filter(
             or_(
@@ -109,7 +118,21 @@ def acl_auth(
         .all()
     )
 
-    if not journal_permissions:
+    if len(objects) == 0:
+        raise PermissionsNotFound(f"No permissions for requested information")
+
+    journal = objects[0][0]
+    journal_permissions = []
+    for object in objects:
+        if object[0] != journal != journal_id:
+            logger.error(
+                f"Unexpected journal {object[0].id} in journal permissions for journal {journal_id}"
+            )
+            raise Exception("Unexpected journal in journal permissions")
+        if object[1] is not None:
+            journal_permissions.append(object[1])
+
+    if len(journal_permissions) == 0:
         raise PermissionsNotFound("No permissions for requested information")
 
     acl[HolderType.user].extend(
@@ -127,7 +150,7 @@ def acl_auth(
         ]
     )
 
-    return acl
+    return journal, acl
 
 
 def acl_check(
@@ -463,21 +486,20 @@ async def journal_statistics(
 
 async def create_journal_entry(
     db_session: Session,
+    journal: Journal,
     entry_request: CreateJournalEntryRequest,
-    user_group_id_list: list = None,
-) -> JournalEntry:
+    locked_by: str,
+) -> Tuple[JournalEntry, JournalEntryLock]:
     """
     Creates an entry in a given journal. Raises InvalidJournalSpec error if the journal is
     misspecified in the creation request, and raises a JournalNotFound error if no such journal
     is found in the database.
     """
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=entry_request.journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
+    commit_list = []
 
+    entry_id = uuid4()
     entry = JournalEntry(
+        id=entry_id,
         journal_id=journal.id,
         title=entry_request.title,
         content=entry_request.content,
@@ -486,8 +508,10 @@ async def create_journal_entry(
         context_type=entry_request.context_type,
         created_at=entry_request.created_at,
     )
-    db_session.add(entry)
-    db_session.commit()
+    commit_list.append(entry)
+
+    entry_lock = JournalEntryLock(journal_entry_id=entry_id, locked_by=locked_by)
+    commit_list.append(entry_lock)
 
     if entry_request.tags is not None:
         tags = [
@@ -495,10 +519,12 @@ async def create_journal_entry(
             for tag in entry_request.tags
             if tag
         ]
-        db_session.add_all(tags)
-        db_session.commit()
+        commit_list.extend(tags)
 
-    return entry
+    db_session.add_all(commit_list)
+    db_session.commit()
+
+    return entry, entry_lock
 
 
 async def create_journal_entries_pack(
@@ -616,8 +642,7 @@ async def get_journal_entry(
     db_session: Session, journal_entry_id: UUID
 ) -> Optional[JournalEntry]:
     """
-    Returns a journal entry by its id. Raises a JournalEntryNotFound error if no such entry is
-    found in the database.
+    Returns a journal entry by its id.
     """
     journal_entry = (
         db_session.query(JournalEntry)
@@ -627,20 +652,82 @@ async def get_journal_entry(
     return journal_entry
 
 
+async def get_journal_entry_with_tags(
+    db_session: Session, journal_entry_id: UUID
+) -> Tuple[JournalEntry, List[JournalEntryTag], JournalEntryLock]:
+    """
+    Returns a journal entry by its id with tags.
+    """
+    objects = (
+        db_session.query(JournalEntry, JournalEntryTag, JournalEntryLock)
+        .join(
+            JournalEntryTag,
+            JournalEntryTag.journal_entry_id == JournalEntry.id,
+            isouter=True,
+        )
+        .join(
+            JournalEntryLock,
+            JournalEntryLock.journal_entry_id == JournalEntry.id,
+            isouter=True,
+        )
+        .filter(JournalEntry.id == journal_entry_id)
+        .all()
+    )
+    if len(objects) == 0:
+        raise EntryNotFound("Entry not found")
+
+    entry = objects[0][0]
+    entry_lock = objects[0][2]
+    tags: List[JournalEntryTag] = []
+    for object in objects:
+        if object[1] is not None:
+            tags.append(object[1])
+
+    return entry, tags, entry_lock
+
+
+async def update_journal_entry(
+    db_session: Session,
+    new_title: str,
+    new_content: str,
+    locked_by: str,
+    journal_entry: JournalEntry,
+    entry_lock: Optional[JournalEntryLock] = None,
+) -> Tuple[JournalEntry, JournalEntryLock]:
+    """
+    Updates existing journal entry content.
+    If lock does not exist, it creates new, otherwise update timestamp.
+    """
+    commit_list = []
+    update_timestamp = datetime.utcnow()
+
+    journal_entry.title = new_title
+    journal_entry.content = new_content
+    journal_entry.updated_at = update_timestamp
+
+    commit_list.append(journal_entry)
+
+    if entry_lock is None:
+        entry_lock = JournalEntryLock(
+            journal_entry_id=journal_entry.id, locked_by=locked_by
+        )
+    entry_lock.locked_at = update_timestamp
+    commit_list.append(entry_lock)
+
+    db_session.add_all(commit_list)
+    db_session.commit()
+
+    return journal_entry, entry_lock
+
+
 async def delete_journal_entry(
     db_session: Session,
-    journal_spec: JournalSpec,
+    journal: Journal,
     entry_id: Optional[UUID],
-    user_group_id_list: List[str] = None,
 ) -> JournalEntry:
     """
     Deletes the given journal entry.
     """
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     query = (
         db_session.query(JournalEntry)
         .filter(JournalEntry.journal_id == journal.id)
@@ -818,18 +905,12 @@ async def get_journal_most_used_tags(
 
 async def create_journal_entry_tags(
     db_session: Session,
-    journal_spec: JournalSpec,
+    journal: Journal,
     tag_request: CreateJournalEntryTagRequest,
-    user_group_id_list: List[str] = None,
 ) -> List[JournalEntryTag]:
     """
     Tags the given journal entry.
     """
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     query = (
         db_session.query(JournalEntry)
         .filter(JournalEntry.journal_id == journal.id)
@@ -886,16 +967,10 @@ async def get_journal_entry_tags(
 
 async def update_journal_entry_tags(
     db_session: Session,
-    journal_spec: JournalSpec,
+    journal: Journal,
     entry_id: UUID,
     tag_request: CreateJournalEntryTagRequest,
-    user_group_id_list: List[str] = None,
 ) -> List[JournalEntryTag]:
-    journal = await find_journal(
-        db_session=db_session,
-        journal_spec=journal_spec,
-        user_group_id_list=user_group_id_list,
-    )
     query = (
         db_session.query(JournalEntry)
         .filter(JournalEntry.journal_id == journal.id)

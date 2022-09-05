@@ -51,6 +51,7 @@ class StatsTypes(Enum):
 
 class RuleActions(Enum):
     remove = "remove"
+    unlock = "unlock"
 
 
 class CreateJournalAPIRequest(BaseModel):
@@ -114,6 +115,7 @@ class JournalEntryContent(BaseModel):
     context_id: Optional[str]
     context_type: Optional[str]
     created_at: Optional[datetime]
+    locked_by: Optional[str]
 
 
 class JournalEntryListContent(BaseModel):
@@ -132,6 +134,7 @@ class JournalEntryResponse(BaseModel):
     context_url: Optional[str]
     context_type: Optional[str]
     context_id: Optional[str] = None
+    locked_by: Optional[str] = None
 
 
 class JournalStatisticsResponse(BaseModel):
@@ -275,7 +278,7 @@ class ContextSpec(BaseModel):
 
 class JournalTTLRuleResponse(BaseModel):
     id: int
-    journal_id: uuid.UUID
+    journal_id: Optional[uuid.UUID]
     name: str
     conditions: Dict[str, Any]
     action: RuleActions
