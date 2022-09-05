@@ -490,7 +490,7 @@ async def delete_restricted_token_handler(
 async def create_report(
     request: Request,
     report: HumbugReport,
-    sync: bool = Query(False),
+    sync: bool = Query(True),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
@@ -564,7 +564,7 @@ async def create_report(
 async def bulk_create_reports(
     request: Request,
     reports_list: List[HumbugReport],
-    sync: bool = Query(False),
+    sync: bool = Query(True),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> Response:
     """
