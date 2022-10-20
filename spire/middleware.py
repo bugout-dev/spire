@@ -49,6 +49,11 @@ class BroodAuthMiddleware(BaseHTTPMiddleware):
         if len(user_token_list) != 2:
             return Response(status_code=403, content="Wrong authorization header")
         user_token: str = user_token_list[-1]
+
+        for header_raw in request.headers:
+            header = header_raw.lower()
+            if header.startswith("x-bugout-"):
+                headers[header] = request.headers.get(header)
         try:
             # Get user info
             r = requests.get(brood_endpoint, headers=headers)

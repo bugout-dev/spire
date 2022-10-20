@@ -34,7 +34,7 @@ setup(
         "appdirs",
         "attrs",
         "boto3>=1.20.2",
-        "bugout>=0.1.19",
+        "bugout>=0.2.2",
         "bugout-brood>=0.2.2",
         "bugout-locust>=0.2.8",
         "cached-property",
