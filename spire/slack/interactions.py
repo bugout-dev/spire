@@ -45,7 +45,7 @@ form_entry_action_ids = {
 action_for_logs = {"POST": "Creating", "PUT": "Updating", "DELETE": "Deleting"}
 
 
-def generate_entry_form(form: Dict[str, Any] = None) -> List[Any]:
+def generate_entry_form(form: Optional[Dict[str, Any]] = None) -> List[Any]:
     """
     Generate modal blocks for create/update entry form
     note: If form init is None then return empty entry form
@@ -792,8 +792,8 @@ async def create_journal_msg_open(payload: Dict[str, Any]) -> None:
         raise ValueError("Bad interaction payload for view_submission")
 
     message_channel = payload.get("channel", {}).get("id")
-    message_ts = payload.get("message_ts")
-    message_user = message_context.get("user")
+    message_ts = payload.get("message_ts", "")
+    message_user = message_context.get("user", "")
 
     with ThreadPoolExecutor(max_workers=THREAD_WORKERS) as executor:
         f_permalink = executor.submit(
