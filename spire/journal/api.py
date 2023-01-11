@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import logging
-from typing import Any, cast, Dict, List, Optional, Set, Union
+from typing import Any, cast, Dict, List, Optional, Set, Union, Tuple
 from uuid import UUID
 
 from elasticsearch import Elasticsearch
@@ -64,6 +64,7 @@ from .data import (
     EntryUpdateTagActions,
     StatsTypes,
     TimeScale,
+    TagUsage,
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
@@ -1670,15 +1671,16 @@ async def delete_entries_by_tags(
     )
 
 
-@app.get("/{journal_id}/tags", tags=["tags"], response_model=List[List[Any]])
+@app.get("/{journal_id}/tags", tags=["tags"], response_model=List[TagUsage])
 async def most_used_tags(
     journal_id: UUID,
     request: Request,
     db_session: Session = Depends(db.yield_connection_from_env),
-) -> List[List[Any]]:
+) -> List[TagUsage]:
     """
     Get all tags for a journal entry.
     """
+
     ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -1689,7 +1691,7 @@ async def most_used_tags(
 
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
     try:
-        tags = await actions.get_journal_most_used_tags(
+        tags: List[Tuple[str, int]] = await actions.get_journal_most_used_tags(
             db_session,
             journal_spec,
             user_group_id_list=request.state.user_group_id_list,
@@ -1703,7 +1705,7 @@ async def most_used_tags(
         logger.error(f"Error listing journal entries: {str(e)}")
         raise HTTPException(status_code=500)
 
-    return tags
+    return [TagUsage(tag=tag[0], count=tag[1]) for tag in tags]
 
 
 @app.post(

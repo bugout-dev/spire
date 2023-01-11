@@ -5,9 +5,9 @@ import os
 import argparse
 import json
 import logging
-from typing import Any, Callable, cast, Coroutine, Dict, List, Optional, Union, Tuple
+from typing import Any, Callable, cast, Coroutine, Dict, List, Optional, Union
 
-import requests
+import requests # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 
 from .models import SlackOAuthEvent, SlackIndexConfiguration, SlackBugoutUser
@@ -105,7 +105,10 @@ def generate_entry_form(form: Dict[str, Any] = None) -> List[Any]:
             "type": "multi_external_select",
             "min_query_length": 0,
         },
-        "hint": {"type": "plain_text", "text": "Select tags from dropdown menu."},
+        "hint": {
+            "type": "plain_text",
+            "text": "Select tags from dropdown menu or type them manually. Limit 75 characters per tag.",
+        },
     }
     if form.get("tags_initial", None):
         modal_tags["element"]["initial_options"] = []
@@ -637,6 +640,7 @@ async def create_journal_open(payload: Dict[str, Any]) -> None:
     Handles global shortcut Create journal entry from Slack. It allow to user add any
     type of content with title and tags in group journal.
     """
+    pprint(payload)
     team_id = payload.get("team", {}).get("id", "")
     with yield_connection_from_env_ctx() as db_session:
         bot_installation = (
@@ -994,7 +998,7 @@ def journal_entry_request_handler(
         "Authorization": f"Bearer {bugout_user.bugout_access_token}",
     }
     try:
-        r = requests.request(method, headers=headers, url=url, json=payload, timeout=3)
+        r = requests.request(method, headers=headers, url=url, json=payload, timeout=5)
         r.raise_for_status()
     except Exception as e:
         logger.error(
@@ -1124,11 +1128,11 @@ async def return_tags_options(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     options: Dict[str, Any] = {"options": []}
 
-    if len(payload.get("value", "")) > 0:
+    if len(payload.get("value", "")) > 0 and len(payload.get("value", "")) <= 75:
         options["options"].append(
             {
                 "text": {"type": "plain_text", "text": payload["value"]},
-                "value": "value-0",
+                "value": payload["value"],
             }
         )
         return options
@@ -1189,7 +1193,10 @@ async def return_tags_options(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise
     [
         options["options"].append(
-            {"text": {"type": "plain_text", "text": text[0]}, "value": f"value-{index}"}
+            {
+                "text": {"type": "plain_text", "text": text["tag"]},
+                "value": f"most-used-tag-{index}",
+            }
         )
         for index, text in enumerate(most_used_tags)
     ]

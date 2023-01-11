@@ -1,7 +1,6 @@
 """
 Journal-related actions in Spire
 """
-from asyncio import streams
 from datetime import date, timedelta, datetime
 import calendar
 import json
@@ -879,9 +878,9 @@ async def get_journal_most_used_tags(
     journal_spec: JournalSpec,
     user_group_id_list: List[str] = None,
     limit: int = 7,
-) -> List[Any]:
+) -> List[Tuple[str, int]]:
     """
-    Returns a list of tags for a given entry.
+    Returns most used tags in journal.
     """
 
     journal = await find_journal(
@@ -893,9 +892,8 @@ async def get_journal_most_used_tags(
         db_session.query(
             JournalEntryTag.tag, func.count(JournalEntryTag.tag).label("total")
         )
-        .join(JournalEntry)
-        .join(Journal)
-        .filter(Journal.id == journal.id)
+        .join(JournalEntry, JournalEntryTag.journal_entry_id == JournalEntry.id)
+        .filter(JournalEntry.journal_id == journal.id)
         .order_by(text("total DESC"))
         .group_by(JournalEntryTag.tag)
         .limit(limit)
