@@ -292,3 +292,8 @@ class JournalTTLRulesListResponse(BaseModel):
 
 class DeletingQuery(BaseModel):
     search_query: str
+
+
+class TagUsage(BaseModel):
+    tag: str
+    count: int

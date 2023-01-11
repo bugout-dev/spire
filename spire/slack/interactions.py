@@ -5,9 +5,9 @@ import os
 import argparse
 import json
 import logging
-from typing import Any, Callable, cast, Coroutine, Dict, List, Optional, Union, Tuple
+from typing import Any, Callable, cast, Coroutine, Dict, List, Optional, Union
 
-import requests
+import requests  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 
 from .models import SlackOAuthEvent, SlackIndexConfiguration, SlackBugoutUser
@@ -45,7 +45,7 @@ form_entry_action_ids = {
 action_for_logs = {"POST": "Creating", "PUT": "Updating", "DELETE": "Deleting"}
 
 
-def generate_entry_form(form: Dict[str, Any] = None) -> List[Any]:
+def generate_entry_form(form: Optional[Dict[str, Any]] = None) -> List[Any]:
     """
     Generate modal blocks for create/update entry form
     note: If form init is None then return empty entry form
@@ -105,7 +105,10 @@ def generate_entry_form(form: Dict[str, Any] = None) -> List[Any]:
             "type": "multi_external_select",
             "min_query_length": 0,
         },
-        "hint": {"type": "plain_text", "text": "Select tags from dropdown menu."},
+        "hint": {
+            "type": "plain_text",
+            "text": "Select tags from dropdown menu or type them manually. Limit 75 characters per tag.",
+        },
     }
     if form.get("tags_initial", None):
         modal_tags["element"]["initial_options"] = []
@@ -789,8 +792,8 @@ async def create_journal_msg_open(payload: Dict[str, Any]) -> None:
         raise ValueError("Bad interaction payload for view_submission")
 
     message_channel = payload.get("channel", {}).get("id")
-    message_ts = payload.get("message_ts")
-    message_user = message_context.get("user")
+    message_ts = payload.get("message_ts", "")
+    message_user = message_context.get("user", "")
 
     with ThreadPoolExecutor(max_workers=THREAD_WORKERS) as executor:
         f_permalink = executor.submit(
@@ -994,7 +997,7 @@ def journal_entry_request_handler(
         "Authorization": f"Bearer {bugout_user.bugout_access_token}",
     }
     try:
-        r = requests.request(method, headers=headers, url=url, json=payload, timeout=3)
+        r = requests.request(method, headers=headers, url=url, json=payload, timeout=5)
         r.raise_for_status()
     except Exception as e:
         logger.error(
@@ -1124,11 +1127,11 @@ async def return_tags_options(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     options: Dict[str, Any] = {"options": []}
 
-    if len(payload.get("value", "")) > 0:
+    if len(payload.get("value", "")) > 0 and len(payload.get("value", "")) <= 75:
         options["options"].append(
             {
                 "text": {"type": "plain_text", "text": payload["value"]},
-                "value": "value-0",
+                "value": payload["value"],
             }
         )
         return options
@@ -1189,7 +1192,10 @@ async def return_tags_options(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise
     [
         options["options"].append(
-            {"text": {"type": "plain_text", "text": text[0]}, "value": f"value-{index}"}
+            {
+                "text": {"type": "plain_text", "text": text["tag"]},
+                "value": f"most-used-tag-{index}",
+            }
         )
         for index, text in enumerate(most_used_tags)
     ]

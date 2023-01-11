@@ -93,7 +93,7 @@ def bugout_auth_user_info(
     user_url = f"{bugout_auth_url}/user"
     headers = {"Authorization": access_token}
     try:
-        user_response = requests.get(user_url, headers=headers)
+        user_response = requests.get(user_url, headers=headers)  # type: ignore
         user_response.raise_for_status()
         user_response_body = user_response.json()
         user_response_body["user_id"]
@@ -110,7 +110,7 @@ def bugout_auth_user_info(
 
     user_info_url = f"{user_url}/{user_response_body['user_id']}"
     try:
-        user_info_response = requests.get(user_info_url, headers=headers)
+        user_info_response = requests.get(user_info_url, headers=headers)  # type: ignore
         user_info_response.raise_for_status()
         body: Dict[str, Any] = user_info_response.json()
         body["user_id"]

@@ -291,7 +291,7 @@ async def slack_interaction(
 
     body = await request.form()
     try:
-        payload = json.loads(body["payload"])
+        payload = json.loads(body["payload"])  # type: ignore
     except Exception as e:
         logger.error("Error parsing interaction payload:")
         logger.error(repr(e))
