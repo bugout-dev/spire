@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Any, Callable, cast, Coroutine, Dict, List, Optional, Union
 
-import requests # type: ignore
+import requests  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 
 from .models import SlackOAuthEvent, SlackIndexConfiguration, SlackBugoutUser
@@ -640,7 +640,6 @@ async def create_journal_open(payload: Dict[str, Any]) -> None:
     Handles global shortcut Create journal entry from Slack. It allow to user add any
     type of content with title and tags in group journal.
     """
-    pprint(payload)
     team_id = payload.get("team", {}).get("id", "")
     with yield_connection_from_env_ctx() as db_session:
         bot_installation = (
