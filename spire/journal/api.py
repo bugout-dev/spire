@@ -672,7 +672,7 @@ async def update_journal_stats(
         },
         headers={BUGOUT_DRONES_TOKEN_HEADER: BUGOUT_DRONES_TOKEN},
         timeout=7,
-    ).json()
+    ).json()  # type: ignore
     return DronesStatisticsResponce.parse_obj(drones_statistics)
 
 

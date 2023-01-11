@@ -155,7 +155,7 @@ def acl_auth(
 def acl_check(
     acl: Dict[HolderType, List[str]],
     required_scopes: Set[Union[JournalScopes, JournalEntryScopes]],
-    check_type: HolderType = None,
+    check_type: Optional[HolderType] = None,
 ) -> None:
     """
     Checks if provided scopes from handler intersect with existing permissions for user/group
@@ -175,7 +175,7 @@ def acl_check(
 
 
 async def find_journals(
-    db_session: Session, user_id: UUID, user_group_id_list: List[str] = None
+    db_session: Session, user_id: UUID, user_group_id_list: Optional[List[str]] = None
 ) -> List[Journal]:
     """
     Return list of journals for requested user.
@@ -219,7 +219,7 @@ async def find_journals(
 async def find_journal(
     db_session: Session,
     journal_spec: JournalSpec,
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
     deleted: bool = False,
 ) -> Journal:
     """
@@ -320,7 +320,7 @@ async def update_journal(
     db_session: Session,
     journal_spec: JournalSpec,
     update_spec: UpdateJournalSpec,
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
 ) -> Journal:
     """
     Updates a journal object in the database. If the record to be updated does not exist, raises a
@@ -342,7 +342,9 @@ async def update_journal(
 
 
 async def delete_journal(
-    db_session: Session, journal_spec: JournalSpec, user_group_id_list: List[str] = None
+    db_session: Session,
+    journal_spec: JournalSpec,
+    user_group_id_list: Optional[List[str]] = None,
 ) -> Journal:
     """
     Deletes the given journal from the database. If there is no journal with that ID, raises a
@@ -366,7 +368,7 @@ async def journal_statistics(
     journal_spec: JournalSpec,
     stats_spec: JournalStatisticsSpecs,
     tags: List[str],
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
 ) -> JournalStatisticsResponse:
 
     """
@@ -608,7 +610,7 @@ async def get_journal_entries(
     db_session: Session,
     journal_spec: JournalSpec,
     entry_id: Optional[UUID],
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
     context_spec: Optional[ContextSpec] = None,
     limit: Optional[int] = 10,
     offset: int = 0,
@@ -747,7 +749,7 @@ async def delete_journal_entries(
     db_session: Session,
     journal_spec: JournalSpec,
     entry_ids: List[UUID],
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
 ) -> ListJournalEntriesResponse:
     """
     Deletes the given journal entries.
@@ -876,7 +878,7 @@ async def get_entries_count_by_tags(
 async def get_journal_most_used_tags(
     db_session: Session,
     journal_spec: JournalSpec,
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
     limit: int = 7,
 ) -> List[Tuple[str, int]]:
     """
@@ -942,7 +944,7 @@ async def get_journal_entry_tags(
     db_session: Session,
     journal_spec: JournalSpec,
     entry_id: UUID,
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
 ) -> List[JournalEntryTag]:
     """
     Returns a list of tags for a given entry.
@@ -1017,7 +1019,7 @@ async def delete_journal_entry_tag(
     journal_spec: JournalSpec,
     entry_id: UUID,
     tag: str,
-    user_group_id_list: List[str] = None,
+    user_group_id_list: Optional[List[str]] = None,
 ) -> Optional[JournalEntryTag]:
     """
     Delete the given tags from the given journal entry (all specified in the tag_request).
