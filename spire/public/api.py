@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..broodusers import bugout_api
 from ..data import VersionResponse
+from ..middleware import BroodAuthMiddleware
 from ..db import yield_db_read_only_session
 from ..utils.settings import DOCS_TARGET_PATH, SPIRE_OPENAPI_LIST
 from . import actions
@@ -71,25 +72,6 @@ async def version() -> VersionResponse:
     return VersionResponse(version=SPIRE_PUBLIC_VERSION)
 
 
-@app_public.get("/check", tags=["public journals"])
-async def check_journal_public(
-    journal_id: UUID = Query(...),
-    db_session: Session = Depends(yield_db_read_only_session),
-) -> bool:
-    """
-    Check if journal is available to public access.
-
-    - **journal_id** (uuid): Journal ID
-    """
-    try:
-        await actions.get_public_journal(db_session, journal_id)
-        return True
-    except actions.PublicJournalNotFound:
-        return False
-    except Exception:
-        raise HTTPException(status_code=500)
-
-
 @app_public.get("/", tags=["public journals"])
 async def list_public_journals_handler(
     user_id: UUID = Query(...),
@@ -116,6 +98,26 @@ async def list_public_journals_handler(
         raise HTTPException(status_code=500)
 
     return result
+
+
+@app_public.get("/{journal_id}/check", tags=["public journals"])
+async def check_journal_public(
+    journal_id: UUID = Path(...),
+    db_session: Session = Depends(yield_db_read_only_session),
+) -> bool:
+    """
+    Check if journal is available to public access.
+
+    - **journal_id** (uuid): Journal ID
+    """
+    try:
+        await actions.get_public_journal(db_session=db_session, journal_id=journal_id)
+        return True
+    except actions.PublicJournalNotFound:
+        return False
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
 
 @app_public.get("/{journal_id}", tags=["public journals"], response_model=BugoutJournal)
