@@ -49,7 +49,10 @@ def make_journal_public(args: argparse.Namespace) -> None:
             }
             print(json.dumps(public_journal_json))
         except Exception as e:
-            print(str(e))
+            print(
+                f"Unable to create record in database with new public journal id: {str(public_journal.journal_id)}, "
+                f"user_id: {str(public_journal.user_id)}, err: {str(e)}"
+            )
 
 
 def revoke_journal_public(args: argparse.Namespace) -> None:
@@ -95,7 +98,10 @@ def revoke_journal_public(args: argparse.Namespace) -> None:
             }
             print(json.dumps(public_journal_json))
         except Exception as e:
-            print(str(e))
+            print(
+                f"Unable to remove record from database with public journal id: {str(public_journal.journal_id)}, "
+                f"user_id: {str(public_journal.user_id)}, err: {str(e)}"
+            )
 
 
 def list_public_journals(args: argparse.Namespace) -> None:
