@@ -72,5 +72,10 @@ setup(
         ],
         "distribute": ["setuptools", "twine", "wheel"],
     },
-    entry_points={"console_scripts": ["journals=spire.journal.cli:main"]},
+    entry_points={
+        "console_scripts": [
+            "journals=spire.journal.cli:main",
+            "public-journals=spire.public.cli:main",
+        ]
+    },
 )

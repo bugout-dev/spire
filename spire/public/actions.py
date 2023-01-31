@@ -36,13 +36,14 @@ async def get_public_journal(db_session: Session, journal_id: UUID) -> PublicJou
     return journal
 
 
-async def get_public_user(
-    db_session: Session, user_id: Optional[UUID] = None
-) -> PublicUser:
-    query = db_session.query(PublicUser)
-    if user_id is not None:
-        public_user = query.filter(PublicUser.user_id == user_id).one()
-    else:
-        public_user = query.first()
+async def get_public_user(db_session: Session, user_id: UUID) -> PublicUser:
+    """
+    Search for public user in database.
+    """
+    public_user = (
+        db_session.query(PublicUser).filter(PublicUser.user_id == user_id).one_or_none()
+    )
+    if public_user is None:
+        raise PublicUserNotFound("Public user not found")
 
     return public_user

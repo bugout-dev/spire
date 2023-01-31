@@ -8,27 +8,22 @@ from typing import List, Optional
 from uuid import UUID
 
 from bugout.data import (
-    BugoutJournals,
     BugoutJournal,
-    BugoutJournalEntry,
     BugoutJournalEntries,
+    BugoutJournalEntry,
+    BugoutJournals,
     BugoutSearchResults,
 )
-from fastapi import (
-    FastAPI,
-    Query,
-    Path,
-    Depends,
-    HTTPException,
-)
+from bugout.exceptions import BugoutResponseException
+from fastapi import Depends, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from . import actions
-from ..data import VersionResponse
-from .. import db
 from ..broodusers import bugout_api
-from ..utils.settings import SPIRE_OPENAPI_LIST, DOCS_TARGET_PATH
+from ..data import VersionResponse
+from ..db import yield_db_read_only_session
+from ..utils.settings import DOCS_TARGET_PATH, SPIRE_OPENAPI_LIST
+from . import actions
 from .version import SPIRE_PUBLIC_VERSION
 
 SUBMODULE_NAME = "public"
@@ -79,7 +74,7 @@ async def version() -> VersionResponse:
 @app_public.get("/check", tags=["public journals"])
 async def check_journal_public(
     journal_id: UUID = Query(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> bool:
     """
     Check if journal is available to public access.
@@ -97,26 +92,36 @@ async def check_journal_public(
 
 @app_public.get("/", tags=["public journals"])
 async def list_public_journals_handler(
-    db_session: Session = Depends(db.yield_connection_from_env),
+    user_id: UUID = Query(...),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournals:
     """
     List journals with public access.
     """
     try:
-        public_user = await actions.get_public_user(db_session)
+        public_user = await actions.get_public_user(
+            db_session=db_session, user_id=user_id
+        )
+        result: BugoutJournals = bugout_api.list_journals(
+            token=public_user.restricted_token_id
+        )
     except actions.PublicUserNotFound:
         raise HTTPException(
-            status_code=403, detail="There is no public access to requested resource"
+            status_code=404, detail="There is no public user with specified ID"
         )
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
-    result = bugout_api.list_journals(token=public_user.restricted_token_id)
     return result
 
 
 @app_public.get("/{journal_id}", tags=["public journals"], response_model=BugoutJournal)
 async def get_public_journal_handler(
     journal_id: UUID = Path(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournal:
     """
     Get public journal.
@@ -143,7 +148,7 @@ async def get_public_journal_handler(
 )
 async def get_public_journal_entries_handler(
     journal_id: UUID = Path(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournalEntries:
     """
     Get list of public journal entries.
@@ -171,7 +176,7 @@ async def get_public_journal_entries_handler(
 async def get_public_journal_entry_handler(
     journal_id: UUID = Path(...),
     entry_id: UUID = Path(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournalEntry:
     """
     Get public journal entry.
@@ -204,7 +209,7 @@ async def search_public_journal_handler(
     limit: int = Query(10),
     offset: int = Query(0),
     content: bool = Query(True),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutSearchResults:
     """
     Executes a search query against the given public journal.
