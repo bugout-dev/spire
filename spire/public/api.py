@@ -81,9 +81,7 @@ async def list_public_journals_handler(
     List journals with public access.
     """
     try:
-        public_user = await actions.get_public_user(
-            db_session=db_session, user_id=user_id
-        )
+        public_user = actions.get_public_user(db_session=db_session, user_id=user_id)
         result: BugoutJournals = bugout_api.list_journals(
             token=public_user.restricted_token_id
         )
@@ -111,7 +109,7 @@ async def check_journal_public(
     - **journal_id** (uuid): Journal ID
     """
     try:
-        await actions.get_public_journal(db_session=db_session, journal_id=journal_id)
+        actions.get_public_journal(db_session=db_session, journal_id=journal_id)
         return True
     except actions.PublicJournalNotFound:
         return False
@@ -131,8 +129,8 @@ async def get_public_journal_handler(
     - **journal_id** (uuid): Journal ID
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_journal = actions.get_public_journal(db_session, journal_id)
+        public_user = actions.get_public_user(db_session, public_journal.user_id)
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
 
@@ -158,8 +156,8 @@ async def get_public_journal_entries_handler(
     - **journal_id** (uuid): Journal ID
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_journal = actions.get_public_journal(db_session, journal_id)
+        public_user = actions.get_public_user(db_session, public_journal.user_id)
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
 
@@ -187,8 +185,8 @@ async def get_public_journal_entry_handler(
     - **entry_id** (uuid): Entry ID
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_journal = actions.get_public_journal(db_session, journal_id)
+        public_user = actions.get_public_user(db_session, public_journal.user_id)
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
 
@@ -217,8 +215,8 @@ async def search_public_journal_handler(
     Executes a search query against the given public journal.
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_journal = actions.get_public_journal(db_session, journal_id)
+        public_user = actions.get_public_user(db_session, public_journal.user_id)
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
 

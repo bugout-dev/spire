@@ -1,6 +1,5 @@
 import logging
-from typing import Any, Dict, List, Set, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -21,22 +20,44 @@ class PublicUserNotFound(Exception):
     """
 
 
-async def get_public_journal(db_session: Session, journal_id: UUID) -> PublicJournal:
+def create_public_journal(
+    db_session: Session, journal_id: UUID, user_id: UUID
+) -> PublicJournal:
+    public_journal = PublicJournal(
+        journal_id=journal_id,
+        user_id=user_id,
+    )
+    db_session.add(public_journal)
+    db_session.commit()
+
+    return public_journal
+
+
+def get_public_journal(db_session: Session, journal_id: UUID) -> PublicJournal:
     """
     Return public journal with provided id.
     """
-    journal = (
+    public_journal = (
         db_session.query(PublicJournal)
         .filter(PublicJournal.journal_id == journal_id)
         .one_or_none()
     )
-    if journal is None:
-        raise PublicJournalNotFound(f"Did not find journals with id: {journal_id}")
+    if public_journal is None:
+        raise PublicJournalNotFound(f"Public journal with id: {journal_id} not found")
 
-    return journal
+    return public_journal
 
 
-async def get_public_user(db_session: Session, user_id: UUID) -> PublicUser:
+def delete_public_journal(
+    db_session: Session, public_journal: PublicJournal
+) -> PublicJournal:
+    db_session.delete(public_journal)
+    db_session.commit()
+
+    return public_journal
+
+
+def get_public_user(db_session: Session, user_id: UUID) -> PublicUser:
     """
     Search for public user in database.
     """
