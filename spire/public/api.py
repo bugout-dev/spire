@@ -254,7 +254,7 @@ async def touch_public_journal_entry_handler(
             token=public_user.restricted_token_id,
             journal_id=journal_id,
             entry_id=entry_id,
-            tags=["touch"],
+            tags=["touch:true"],
         )
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
