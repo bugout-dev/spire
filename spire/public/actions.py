@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Dict, List
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -18,6 +19,16 @@ class PublicUserNotFound(Exception):
     """
     Raised on actions that involve public user which are not present in the database.
     """
+
+
+entry_fields_length_limit: List[Dict[str, Any]] = [
+    {"name": "title", "max_length": 50},
+    {"name": "content", "max_length": 400},
+    {"name": "tags", "max_length": 3},
+    {"name": "context_url", "max_length": 100},
+    {"name": "context_id", "max_length": 40},
+    {"name": "context_type", "max_length": 40},
+]
 
 
 def create_public_journal(
@@ -68,3 +79,19 @@ def get_public_user(db_session: Session, user_id: UUID) -> PublicUser:
         raise PublicUserNotFound("Public user not found")
 
     return public_user
+
+
+def get_public_journal_user(db_session: Session, journal_id: UUID) -> PublicUser:
+    """
+    Search for public journal with user in database.
+    """
+    public_journal_user = (
+        db_session.query(PublicUser)
+        .join(PublicJournal, PublicUser.user_id == PublicJournal.user_id)
+        .filter(PublicJournal.journal_id == journal_id)
+        .one_or_none()
+    )
+    if public_journal_user is None:
+        raise PublicJournalNotFound(f"Public journal with id: {journal_id} not found")
+
+    return public_journal_user
