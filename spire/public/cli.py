@@ -17,6 +17,8 @@ def make_journal_public(args: argparse.Namespace) -> None:
     public_permission_list = ["journals.read", "journals.entries.read"]
     if args.entry_create:
         public_permission_list.append("journals.entries.create")
+    if args.entry_update:
+        public_permission_list.append("journals.entries.update")
 
     with yield_connection_from_env_ctx() as db_session:
         public_user = actions.get_public_user(
@@ -270,6 +272,11 @@ def main() -> None:
         "--entry-create",
         action="store_true",
         help="Allow unknown users to create entries",
+    )
+    parser_journal_make.add_argument(
+        "--entry-update",
+        action="store_true",
+        help="Allow unknown users to touch entries",
     )
     parser_journal_make.set_defaults(func=make_journal_public)
 
