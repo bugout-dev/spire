@@ -199,7 +199,7 @@ async def create_public_journal_entry_handler(
                 )
 
     for tag in create_request.tags:
-        if len(tag) > 50:
+        if len(tag) > 80:
             raise HTTPException(
                 status_code=413, detail="Tag length too long for public access"
             )

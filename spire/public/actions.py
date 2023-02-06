@@ -22,9 +22,9 @@ class PublicUserNotFound(Exception):
 
 
 entry_fields_length_limit: List[Dict[str, Any]] = [
-    {"name": "title", "max_length": 50},
+    {"name": "title", "max_length": 100},
     {"name": "content", "max_length": 400},
-    {"name": "tags", "max_length": 3},
+    {"name": "tags", "max_length": 5},
     {"name": "context_url", "max_length": 100},
     {"name": "context_id", "max_length": 40},
     {"name": "context_type", "max_length": 40},
