@@ -140,9 +140,9 @@ DEFAULT_JOURNALS_ES_INDEX = "bugout-main"
 BULK_CHUNKSIZE = 1000
 
 # Drones AWS bucket
-DRONES_BUCKET = os.environ.get("AWS_S3_DRONES_BUCKET")
+DRONES_BUCKET = os.environ.get("BUGOUT_AWS_S3_DRONES_BUCKET")
 DRONES_BUCKET_STATISTICS_PREFIX = os.environ.get(
-    "AWS_S3_DRONES_BUCKET_STATISTICS_PREFIX", "prod/statistics/journals"
+    "BUGOUT_AWS_S3_DRONES_BUCKET_STATISTICS_PREFIX", "prod/statistics/journals"
 ).rstrip("/")
 DRONES_URL = os.environ.get("BUGOUT_DRONES_URL")
 BUGOUT_DRONES_TOKEN = os.environ.get("BUGOUT_DRONES_TOKEN")

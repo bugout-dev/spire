@@ -4,31 +4,27 @@ Public endpoints.
 FastAPI doesn't like Generic Routes https://github.com/tiangolo/fastapi/issues/913#issuecomment
 """
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from bugout.data import (
-    BugoutJournals,
     BugoutJournal,
-    BugoutJournalEntry,
     BugoutJournalEntries,
+    BugoutJournalEntry,
+    BugoutJournalEntryRequest,
+    BugoutJournals,
     BugoutSearchResults,
 )
-from fastapi import (
-    FastAPI,
-    Query,
-    Path,
-    Depends,
-    HTTPException,
-)
+from bugout.exceptions import BugoutResponseException
+from fastapi import Body, Depends, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from . import actions
-from ..data import VersionResponse
-from .. import db
 from ..broodusers import bugout_api
-from ..utils.settings import SPIRE_OPENAPI_LIST, DOCS_TARGET_PATH
+from ..data import VersionResponse
+from ..db import yield_db_read_only_session
+from ..utils.settings import DOCS_TARGET_PATH, SPIRE_OPENAPI_LIST
+from . import actions
 from .version import SPIRE_PUBLIC_VERSION
 
 SUBMODULE_NAME = "public"
@@ -76,10 +72,34 @@ async def version() -> VersionResponse:
     return VersionResponse(version=SPIRE_PUBLIC_VERSION)
 
 
-@app_public.get("/check", tags=["public journals"])
+@app_public.get("/", tags=["public journals"])
+async def list_public_journals_handler(
+    user_id: UUID = Query(...),
+    db_session: Session = Depends(yield_db_read_only_session),
+) -> BugoutJournals:
+    """
+    List journals with public access.
+    """
+    try:
+        public_user = actions.get_public_user(db_session=db_session, user_id=user_id)
+        result: BugoutJournals = bugout_api.list_journals(
+            token=public_user.restricted_token_id
+        )
+    except actions.PublicUserNotFound:
+        raise HTTPException(status_code=404, detail="Public user not found")
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
+
+    return result
+
+
+@app_public.get("/{journal_id}/check", tags=["public journals"])
 async def check_journal_public(
-    journal_id: UUID = Query(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    journal_id: UUID = Path(...),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> bool:
     """
     Check if journal is available to public access.
@@ -87,36 +107,19 @@ async def check_journal_public(
     - **journal_id** (uuid): Journal ID
     """
     try:
-        await actions.get_public_journal(db_session, journal_id)
+        actions.get_public_journal(db_session=db_session, journal_id=journal_id)
         return True
     except actions.PublicJournalNotFound:
         return False
-    except Exception:
+    except Exception as e:
+        logger.error(e)
         raise HTTPException(status_code=500)
-
-
-@app_public.get("/", tags=["public journals"])
-async def list_public_journals_handler(
-    db_session: Session = Depends(db.yield_connection_from_env),
-) -> BugoutJournals:
-    """
-    List journals with public access.
-    """
-    try:
-        public_user = await actions.get_public_user(db_session)
-    except actions.PublicUserNotFound:
-        raise HTTPException(
-            status_code=403, detail="There is no public access to requested resource"
-        )
-
-    result = bugout_api.list_journals(token=public_user.restricted_token_id)
-    return result
 
 
 @app_public.get("/{journal_id}", tags=["public journals"], response_model=BugoutJournal)
 async def get_public_journal_handler(
     journal_id: UUID = Path(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournal:
     """
     Get public journal.
@@ -124,14 +127,20 @@ async def get_public_journal_handler(
     - **journal_id** (uuid): Journal ID
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_user = actions.get_public_journal_user(
+            db_session=db_session, journal_id=journal_id
+        )
+
+        result = bugout_api.get_journal(
+            token=public_user.restricted_token_id, journal_id=journal_id
+        )
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
-
-    result = bugout_api.get_journal(
-        token=public_user.restricted_token_id, journal_id=public_journal.journal_id
-    )
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
     return result
 
@@ -143,7 +152,7 @@ async def get_public_journal_handler(
 )
 async def get_public_journal_entries_handler(
     journal_id: UUID = Path(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournalEntries:
     """
     Get list of public journal entries.
@@ -151,14 +160,109 @@ async def get_public_journal_entries_handler(
     - **journal_id** (uuid): Journal ID
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_user = actions.get_public_journal_user(
+            db_session=db_session, journal_id=journal_id
+        )
+
+        result = bugout_api.get_entries(
+            token=public_user.restricted_token_id, journal_id=journal_id
+        )
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
-    result = bugout_api.get_entries(
-        token=public_user.restricted_token_id, journal_id=public_journal.journal_id
-    )
+    return result
+
+
+@app_public.post(
+    "/{journal_id}/entries", tags=["public journals"], response_model=BugoutJournalEntry
+)
+async def create_public_journal_entry_handler(
+    journal_id: UUID = Path(...),
+    create_request: BugoutJournalEntryRequest = Body(...),
+    db_session: Session = Depends(yield_db_read_only_session),
+) -> BugoutJournalEntry:
+    """
+    Create public journal entry as autogenerated user.
+    """
+    for f in actions.entry_fields_length_limit:
+        req_attr = getattr(create_request, f["name"])
+        if req_attr is not None:
+            if len(req_attr) > f["max_length"]:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Field {f['name']} length too long for public access",
+                )
+
+    for tag in create_request.tags:
+        if len(tag) > 80:
+            raise HTTPException(
+                status_code=413, detail="Tag length too long for public access"
+            )
+    try:
+        public_user = actions.get_public_journal_user(
+            db_session=db_session, journal_id=journal_id
+        )
+
+        tags = create_request.tags
+        tags.extend(["autogenerated:true"])
+
+        result = bugout_api.create_entry(
+            token=public_user.restricted_token_id,
+            journal_id=journal_id,
+            title=create_request.title,
+            content=create_request.content,
+            tags=create_request.tags,
+            context_url=create_request.context_url,
+            context_id=create_request.context_id,
+            context_type=create_request.context_type,
+        )
+    except actions.PublicJournalNotFound:
+        raise HTTPException(status_code=404, detail="Public journal not found")
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
+
+    return result
+
+
+@app_public.put(
+    "/{journal_id}/entries/{entry_id}",
+    tags=["public journals"],
+    response_model=List[str],
+)
+async def touch_public_journal_entry_handler(
+    journal_id: UUID = Path(...),
+    entry_id: UUID = Path(...),
+    db_session: Session = Depends(yield_db_read_only_session),
+) -> List[str]:
+    """
+    Touch public journal entry as autogenerated user.
+    """
+    try:
+        public_user = actions.get_public_journal_user(
+            db_session=db_session, journal_id=journal_id
+        )
+
+        result = bugout_api.create_tags(
+            token=public_user.restricted_token_id,
+            journal_id=journal_id,
+            entry_id=entry_id,
+            tags=["touch:true"],
+        )
+    except actions.PublicJournalNotFound:
+        raise HTTPException(status_code=404, detail="Public journal not found")
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
     return result
 
@@ -171,7 +275,7 @@ async def get_public_journal_entries_handler(
 async def get_public_journal_entry_handler(
     journal_id: UUID = Path(...),
     entry_id: UUID = Path(...),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutJournalEntry:
     """
     Get public journal entry.
@@ -180,16 +284,22 @@ async def get_public_journal_entry_handler(
     - **entry_id** (uuid): Entry ID
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_user = actions.get_public_journal_user(
+            db_session=db_session, journal_id=journal_id
+        )
+
+        result = bugout_api.get_entry(
+            token=public_user.restricted_token_id,
+            journal_id=journal_id,
+            entry_id=entry_id,
+        )
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
-
-    result = bugout_api.get_entry(
-        token=public_user.restricted_token_id,
-        journal_id=public_journal.journal_id,
-        entry_id=entry_id,
-    )
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
     return result
 
@@ -204,25 +314,31 @@ async def search_public_journal_handler(
     limit: int = Query(10),
     offset: int = Query(0),
     content: bool = Query(True),
-    db_session: Session = Depends(db.yield_connection_from_env),
+    db_session: Session = Depends(yield_db_read_only_session),
 ) -> BugoutSearchResults:
     """
     Executes a search query against the given public journal.
     """
     try:
-        public_journal = await actions.get_public_journal(db_session, journal_id)
-        public_user = await actions.get_public_user(db_session, public_journal.user_id)
+        public_user = actions.get_public_journal_user(
+            db_session=db_session, journal_id=journal_id
+        )
+
+        result = bugout_api.search(
+            token=public_user.restricted_token_id,
+            journal_id=journal_id,
+            query=q,
+            filters=filters,
+            limit=limit,
+            offset=offset,
+            content=content,
+        )
     except actions.PublicJournalNotFound:
         raise HTTPException(status_code=404, detail="Public journal not found")
-
-    result = bugout_api.search(
-        token=public_user.restricted_token_id,
-        journal_id=public_journal.journal_id,
-        query=q,
-        filters=filters,
-        limit=limit,
-        offset=offset,
-        content=content,
-    )
+    except BugoutResponseException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(status_code=500)
 
     return result
