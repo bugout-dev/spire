@@ -25,7 +25,10 @@ from .data import (
     JournalStatisticsSpecs,
     CreateJournalEntryRequest,
     JournalEntryListContent,
+    JournalEntryContent,
+    JournalsEntriesTagsResponse,
     CreateJournalEntryTagRequest,
+    CreateEntriesTagsRequest,
     JournalSearchResultsResponse,
     JournalStatisticsResponse,
     UpdateJournalSpec,
@@ -65,6 +68,19 @@ class EntryNotFound(Exception):
     """
     Raised on actions that involve journal entries which are not present in the database.
     """
+
+
+
+# Excption with list of not found entries
+class EntriesNotFound(Exception):
+    """
+    Raised on actions that involve journal entries which are not present in the database.
+    """
+    
+    def __init__(self, message: str, entries: List[UUID]):
+        super().__init__(message)
+        self.entries = entries
+
 
 
 class EntryLocked(Exception):
@@ -686,6 +702,59 @@ async def get_journal_entry_with_tags(
 
     return entry, tags, entry_lock
 
+async def get_journal_entries_with_tags(
+    db_session: Session, journal_entries_ids: List[UUID]
+) -> List[JournalEntryResponse]:
+    """
+    Returns a journal entries by its id with tags.
+    """
+    objects = (
+        db_session.query(JournalEntry, JournalEntryTag.tag)
+        .join(
+            JournalEntryTag,
+            JournalEntryTag.journal_entry_id == JournalEntry.id,
+            isouter=True,
+        )
+        .join(
+            JournalEntryLock,
+            JournalEntryLock.journal_entry_id == JournalEntry.id,
+            isouter=True,
+        )
+        .filter(JournalEntry.id.any_(journal_entries_ids))
+    ).cte("entries")
+
+    entries = db_session.query(
+        objects.c.id.label("id"),
+        objects.c.journal_id.label("journal_id"),
+        objects.c.title.label("title"),
+        objects.c.content.label("content"),
+        func.array_agg(objects.c.tag).label("tags"),
+        objects.c.created_at.label("created_at"),
+        objects.c.updated_at.label("updated_at"),
+        objects.c.context_url.label("context_url"),
+        objects.c.context_type.label("context_type"),
+        objects.c.context_id.label("context_id"),
+        objects.c.locked_by.label("locked_by"),
+    ).group_by(
+        objects.c.id
+    ).all()
+
+    return [
+        JournalEntryResponse(
+            id=entry.id,
+            title=entry.title,
+            content=entry.content,
+            tags=list(entry.tags),
+            context_url=entry.context_url,
+            context_type=entry.context_type,
+            context_id=entry.context_id,
+            created_at=entry.created_at,
+            updated_at=entry.updated_at,
+            locked_by=entry.locked_by,
+        )
+        for entry in entries
+    ]
+
 
 async def update_journal_entry(
     db_session: Session,
@@ -1012,6 +1081,157 @@ async def update_journal_entry_tags(
         JournalEntryTag.journal_entry_id == entry_id
     )
     return query.all()
+
+
+async def create_journal_entries_tags(
+    db_session: Session,
+    journal: Journal,
+    entries_tags_request: CreateEntriesTagsRequest,
+) -> List[UUID]:
+    
+    """
+    Create tags for entries in journal.
+    """
+    
+    # For more useful error message
+    requested_entries = [entry.journal_entry_id for entry in entries_tags_request.entries]
+
+    # Index scan for entries ids
+    query = db_session.query(JournalEntry.id).filter(
+        JournalEntry.journal_id == journal.id
+    ).filter(JournalEntry.id.any_(requested_entries))
+
+
+    ### perfomance test https://stackoverflow.com/a/3462202/13271066
+
+    existing_entries: Set[UUID] = set([UUID(entry[0]) for entry in query.all()])
+
+    diff = [x for x in requested_entries if x not in existing_entries]
+
+    if len(diff) > 0:
+        raise EntriesNotFound("Could not find some of the given entries" , diff)
+
+
+    values: List[Dict[str,Any]] = []
+
+    for entry_tag_request in entries_tags_request.entries:
+        entry_id = entry_tag_request.journal_entry_id
+
+        for tag in entry_tag_request.tags:
+
+            insert_object = {
+                "journal_entry_id": entry_id,
+                "tag": tag,
+            }
+
+            values.append(insert_object)
+
+
+    # Deduplicate tags because of on_conflict_do_nothing not working with duplicates in values
+    seen = set()
+    deduplicated_values = []
+    for d in values:
+        t = tuple(sorted(d.items()))
+        if t not in seen:
+            seen.add(t)
+            deduplicated_values.append(d)
+
+    insert_statement = (
+        postgresql.insert(JournalEntryTag)
+        .values(deduplicated_values)
+        .on_conflict_do_nothing(index_elements=["journal_entry_id", "tag"])
+    )
+
+    try:
+        db_session.execute(insert_statement)
+        db_session.commit()
+    except:
+        db_session.rollback()
+        raise
+
+    return requested_entries
+
+
+async def delete_journal_entries_tags(
+    db_session: Session,
+    journal: Journal,
+    entries_tags_request: CreateEntriesTagsRequest,
+) -> List[UUID]:
+    
+
+    """
+    Delete tags for entries in journal.
+    """
+
+    requested_entries = [entry.journal_entry_id for entry in entries_tags_request.entries]
+
+    query = db_session.query(JournalEntry.id).filter(
+        JournalEntry.journal_id == journal.id
+    ).filter(JournalEntry.id.any_(requested_entries))
+
+
+    ### perfomance test https://stackoverflow.com/a/3462202/13271066
+
+    existing_entries: Set[UUID] = set([UUID(entry[0]) for entry in query.all()])
+
+    diff = [x for x in requested_entries if x not in existing_entries]
+
+    if len(diff) > 0:
+        raise EntriesNotFound("Could not find some of the given entries" , diff)
+
+
+    values: List[Dict[str,Any]] = []
+
+    for entry_tag_request in entries_tags_request.entries:
+        entry_id = entry_tag_request.journal_entry_id
+
+        for tag in entry_tag_request.tags:
+
+            insert_object = {
+                "journal_entry_id": entry_id,
+                "tag": tag,
+            }
+
+            values.append(insert_object)
+
+
+    # Deduplicate tags
+
+    seen = set()
+    deduplicated_values = []
+    for d in values:
+        t = tuple(sorted(d.items()))
+        if t not in seen:
+            seen.add(t)
+            deduplicated_values.append(d)
+
+    row_numbers = (
+        db_session.query(
+            JournalEntryTag.id,
+        )
+        .join(JournalEntry, JournalEntryTag.journal_entry_id == JournalEntry.id)
+        .filter(JournalEntry.journal_id == journal.id)
+        .filter(JournalEntryTag.journal_entry_id.in_([entry.journal_entry_id for entry in entries_tags_request.entries]))
+        .filter(JournalEntryTag.tag.in_([tag for entry in entries_tags_request.entries for tag in entry.tags]))
+        .cte("selected_tags")
+    )
+
+
+    delete_statement = (
+        postgresql.delete(JournalEntryTag)
+        .where(JournalEntryTag.id.any_(row_numbers.c.id)
+        )
+    )
+
+    try:
+        db_session.execute(delete_statement)
+        db_session.commit()
+    except:
+        db_session.rollback()
+        raise
+
+    return requested_entries
+
 
 
 async def delete_journal_entry_tag(

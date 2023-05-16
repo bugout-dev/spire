@@ -14,7 +14,7 @@ from fastapi import (
     Path,
 )
 from fastapi.middleware.cors import CORSMiddleware
-import requests
+import requests # type: ignore
 
 from sqlalchemy.orm import Session
 import boto3
@@ -31,6 +31,7 @@ from .data import (
     JournalEntryContent,
     JournalEntryListContent,
     CreateJournalEntryTagRequest,
+    CreateEntriesTagsRequest,
     CreateJournalEntryTagsAPIRequest,
     DeleteJournalEntryTagAPIRequest,
     DeleteJournalEntriesByTagsAPIRequest,
@@ -42,6 +43,7 @@ from .data import (
     JournalResponse,
     JournalEntryResponse,
     JournalEntryTagsResponse,
+    JournalsEntriesTagsResponse,
     JournalEntryIds,
     JournalStatisticsSpecs,
     JournalStatisticsResponse,
@@ -1948,6 +1950,177 @@ async def update_tags(
             )
 
     return api_tag_request.tags
+
+
+@app.post(
+    "/{journal_id}/entries_tags", tags=["tags"], response_model=List[str]
+)
+async def create_entries_tags(
+    journal_id: UUID,
+    entries_tags_request: CreateEntriesTagsRequest,
+    request: Request,
+    db_session: Session = Depends(db.yield_connection_from_env),
+    es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
+) -> List[JournalEntryResponse]:
+    
+
+    """
+    Create tags for a journal entries of journal.
+    """
+
+    ensure_journal_permission(
+        db_session,
+        request.state.user_id,
+        request.state.user_group_id_list,
+        journal_id,
+        {JournalEntryScopes.UPDATE},
+    )
+
+
+    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
+    try:
+        journal = await actions.find_journal(
+            db_session=db_session,
+            journal_spec=journal_spec,
+            user_group_id_list=request.state.user_group_id_list,
+        )
+    except actions.JournalNotFound:
+        logger.error(
+            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
+        )
+        raise HTTPException(status_code=404)
+    except Exception as e:
+        logger.error(f"Error retrieving journal: {str(e)}")
+        raise HTTPException(status_code=500)
+    es_index = journal.search_index
+    
+    try:
+        updated_entry_ids = await actions.create_journal_entries_tags(
+            db_session,
+            journal,
+            entries_tags_request
+        )
+    except actions.EntriesNotFound as e:
+        logger.error(
+            f"Entries not found with entries"
+        )
+        raise HTTPException(status_code=404, detail=f"Not entries with ids: {e.entries}")
+    except Exception as e:
+        logger.error(f"Error journal entries tags update: {str(e)}")
+        raise HTTPException(status_code=500)
+    
+    entries_objects = await actions.get_journal_entries_with_tags(
+        db_session,
+        journal_entries_ids=updated_entry_ids
+    )
+    
+    if es_index is not None:
+
+        try:
+
+            search.bulk_create_entries(
+                es_client,
+                es_index=es_index,
+                journal_id=journal_id,
+                entries=entries_objects
+            )
+
+        except Exception as e:
+            logger.warning(
+                f"Error creating tags for entry ({updated_entry_ids}) in journal ({str(journal_id)}) for "
+                f"user ({request.state.user_id}): {repr(e)}"
+            )
+
+
+    return entries_objects
+
+
+
+
+@app.delete(
+    "/{journal_id}/entries_tags", tags=["tags"], response_model=List[str]
+)
+async def delete_entries_tags(
+    journal_id: UUID,
+    entries_tags_request: CreateEntriesTagsRequest,
+    request: Request,
+    db_session: Session = Depends(db.yield_connection_from_env),
+    es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
+) -> List[JournalEntryResponse]:
+    
+
+    """
+    Create tags for a journal entries of journal.
+    """
+
+    ensure_journal_permission(
+        db_session,
+        request.state.user_id,
+        request.state.user_group_id_list,
+        journal_id,
+        {JournalEntryScopes.UPDATE},
+    )
+
+
+    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
+    try:
+        journal = await actions.find_journal(
+            db_session=db_session,
+            journal_spec=journal_spec,
+            user_group_id_list=request.state.user_group_id_list,
+        )
+    except actions.JournalNotFound:
+        logger.error(
+            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
+        )
+        raise HTTPException(status_code=404)
+    except Exception as e:
+        logger.error(f"Error retrieving journal: {str(e)}")
+        raise HTTPException(status_code=500)
+    es_index = journal.search_index
+    
+    try:
+        deleted_entry_ids = await actions.delete_journal_entries_tags(
+            db_session,
+            journal,
+            entries_tags_request
+        )
+    except actions.EntriesNotFound as e:
+        logger.error(
+            f"Entries not found with entries"
+        )
+        raise HTTPException(status_code=404, detail=f"Not entries with ids: {e.entries}")
+    except Exception as e:
+        logger.error(f"Error journal entries tags update: {str(e)}")
+        raise HTTPException(status_code=500)
+    
+    entries_objects = await actions.get_journal_entries_with_tags(
+        db_session,
+        journal_entries_ids=deleted_entry_ids
+    )
+    
+    if es_index is not None:
+
+        try:
+
+            search.bulk_create_entries(
+                es_client,
+                es_index=es_index,
+                journal_id=journal_id,
+                entries=entries_objects
+            )
+
+        except Exception as e:
+            logger.warning(
+                f"Error creating tags for entry ({deleted_entry_ids}) in journal ({str(journal_id)}) for "
+                f"user ({request.state.user_id}): {repr(e)}"
+            )
+
+
+    return entries_objects
+    
+    
+
 
 
 @app.delete(

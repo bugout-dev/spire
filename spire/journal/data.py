@@ -176,6 +176,10 @@ class CreateJournalEntryTagRequest(BaseModel):
     tags: List[str]
 
 
+class CreateEntriesTagsRequest(BaseModel):
+    entries: List[CreateJournalEntryTagRequest] = Field(default_factory=list)
+
+
 class CreateJournalEntryTagsAPIRequest(BaseModel):
     tags: List[str]
 
@@ -192,6 +196,10 @@ class JournalEntryTagsResponse(BaseModel):
     journal_id: uuid.UUID
     entry_id: uuid.UUID
     tags: List[str]
+
+
+class JournalsEntriesTagsResponse(BaseModel):
+    entries: List[JournalEntryTagsResponse] = Field(default_factory=list)
 
 
 class JournalEntriesByTagsDeletionResponse(BaseModel):
