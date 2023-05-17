@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 import boto3
 
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import or_, func, text, and_
+from sqlalchemy import or_, func, text, and_, any_, select
 from sqlalchemy.dialects import postgresql
 
 
@@ -104,6 +104,11 @@ class PermissionAlreadyExists(Exception):
 class InvalidParameters(ValueError):
     """
     Raised when operations are applied to a user/group permissions but invalid parameters are provided.
+    """
+
+class CommitFailed(Exception):
+    """
+    Raised when commit failed.
     """
 
 
@@ -720,7 +725,7 @@ async def get_journal_entries_with_tags(
             JournalEntryLock.journal_entry_id == JournalEntry.id,
             isouter=True,
         )
-        .filter(JournalEntry.id.any_(journal_entries_ids))
+        .filter(JournalEntry.id.in_(journal_entries_ids))
     ).cte("entries")
 
     entries = db_session.query(
@@ -733,10 +738,17 @@ async def get_journal_entries_with_tags(
         objects.c.updated_at.label("updated_at"),
         objects.c.context_url.label("context_url"),
         objects.c.context_type.label("context_type"),
-        objects.c.context_id.label("context_id"),
-        objects.c.locked_by.label("locked_by"),
+        objects.c.context_id.label("context_id")
     ).group_by(
-        objects.c.id
+        objects.c.id,
+        objects.c.journal_id,
+        objects.c.title,
+        objects.c.content,
+        objects.c.created_at,
+        objects.c.updated_at,
+        objects.c.context_url,
+        objects.c.context_type,
+        objects.c.context_id
     ).all()
 
     return [
@@ -744,13 +756,13 @@ async def get_journal_entries_with_tags(
             id=entry.id,
             title=entry.title,
             content=entry.content,
-            tags=list(entry.tags),
+            tags=list(entry.tags if entry.tags != [None] else []),
             context_url=entry.context_url,
             context_type=entry.context_type,
             context_id=entry.context_id,
             created_at=entry.created_at,
             updated_at=entry.updated_at,
-            locked_by=entry.locked_by,
+            locked_by=None
         )
         for entry in entries
     ]
@@ -1099,12 +1111,13 @@ async def create_journal_entries_tags(
     # Index scan for entries ids
     query = db_session.query(JournalEntry.id).filter(
         JournalEntry.journal_id == journal.id
-    ).filter(JournalEntry.id.any_(requested_entries))
+    ).filter(JournalEntry.id.in_(requested_entries))
+
 
 
     ### perfomance test https://stackoverflow.com/a/3462202/13271066
 
-    existing_entries: Set[UUID] = set([UUID(entry[0]) for entry in query.all()])
+    existing_entries: Set[UUID] = set([entry[0] for entry in query.all()])
 
     diff = [x for x in requested_entries if x not in existing_entries]
 
@@ -1147,7 +1160,7 @@ async def create_journal_entries_tags(
         db_session.commit()
     except:
         db_session.rollback()
-        raise
+        raise CommitFailed("Could not create tags")
 
     return requested_entries
 
@@ -1167,12 +1180,12 @@ async def delete_journal_entries_tags(
 
     query = db_session.query(JournalEntry.id).filter(
         JournalEntry.journal_id == journal.id
-    ).filter(JournalEntry.id.any_(requested_entries))
+    ).filter(JournalEntry.id.in_(requested_entries))
 
 
     ### perfomance test https://stackoverflow.com/a/3462202/13271066
 
-    existing_entries: Set[UUID] = set([UUID(entry[0]) for entry in query.all()])
+    existing_entries: Set[UUID] = set([entry[0] for entry in query.all()])
 
     diff = [x for x in requested_entries if x not in existing_entries]
 
@@ -1205,9 +1218,9 @@ async def delete_journal_entries_tags(
             seen.add(t)
             deduplicated_values.append(d)
 
-    row_numbers = (
+    selected_tags = (
         db_session.query(
-            JournalEntryTag.id,
+            JournalEntryTag.id.label("id"),
         )
         .join(JournalEntry, JournalEntryTag.journal_entry_id == JournalEntry.id)
         .filter(JournalEntry.journal_id == journal.id)
@@ -1216,19 +1229,19 @@ async def delete_journal_entries_tags(
         .cte("selected_tags")
     )
 
-
     delete_statement = (
-        postgresql.delete(JournalEntryTag)
-        .where(JournalEntryTag.id.any_(row_numbers.c.id)
-        )
-    )
+        db_session.query(JournalEntryTag)
+        .filter(JournalEntryTag.id.in_(select(selected_tags.c.id))
+        ).delete(synchronize_session=False)
+    )    
 
     try:
-        db_session.execute(delete_statement)
         db_session.commit()
+        logger.info(f"Deleted {delete_statement} tags")
     except:
         db_session.rollback()
-        raise
+        raise CommitFailed("Could not delete tags")
+
 
     return requested_entries
 
