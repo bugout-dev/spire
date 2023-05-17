@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 import boto3
 
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import or_, func, text, and_, any_, select
+from sqlalchemy import or_, func, text, and_, select
 from sqlalchemy.dialects import postgresql
 
 
@@ -25,8 +25,6 @@ from .data import (
     JournalStatisticsSpecs,
     CreateJournalEntryRequest,
     JournalEntryListContent,
-    JournalEntryContent,
-    JournalsEntriesTagsResponse,
     CreateJournalEntryTagRequest,
     CreateEntriesTagsRequest,
     JournalSearchResultsResponse,
