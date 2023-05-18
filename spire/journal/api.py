@@ -15,7 +15,7 @@ from fastapi import (
     Path,
 )
 from fastapi.middleware.cors import CORSMiddleware
-import requests # type: ignore
+import requests  # type: ignore
 
 from sqlalchemy.orm import Session
 import boto3
@@ -1954,7 +1954,9 @@ async def update_tags(
 
 
 @app.post(
-    "/{journal_id}/entries_tags", tags=["tags"], response_model=List[JournalEntryResponse]
+    "/{journal_id}/bulk_entries_tags",
+    tags=["tags"],
+    response_model=List[JournalEntryResponse],
 )
 async def create_entries_tags(
     journal_id: UUID,
@@ -1963,10 +1965,9 @@ async def create_entries_tags(
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
 ) -> List[JournalEntryResponse]:
-    
 
     """
-    Create tags for a journal entries of journal.
+    Create tags for multiple journal entries.
     """
 
     ensure_journal_permission(
@@ -1995,33 +1996,30 @@ async def create_entries_tags(
     es_index = journal.search_index
     try:
         updated_entry_ids = await actions.create_journal_entries_tags(
-            db_session,
-            journal,
-            entries_tags_request
+            db_session, journal, entries_tags_request
         )
     except actions.EntriesNotFound as e:
-        logger.error(
-            f"Entries not found with entries"
+        logger.error(f"Entries not found with entries")
+        raise HTTPException(
+            status_code=404, detail=f"Not entries with ids: {e.entries}"
         )
-        raise HTTPException(status_code=404, detail=f"Not entries with ids: {e.entries}")
     except actions.CommitFailed as e:
-        logger.error(
-            f"Can't write tags for entries to database"
+        logger.error(f"Can't write tags for entries to database")
+        raise HTTPException(
+            status_code=409, detail=f"Can't write tags for entries to database"
         )
-        raise HTTPException(status_code=409, detail=f"Can't write tags for entries to database")
     except Exception as e:
         logger.error(f"Error journal entries tags update: {str(e)}")
         raise HTTPException(status_code=500)
-    
+
     try:
         entries_objects = await actions.get_journal_entries_with_tags(
-            db_session,
-            journal_entries_ids=updated_entry_ids
+            db_session, journal_entries_ids=updated_entry_ids
         )
     except Exception as e:
         logger.error(f"Error get journal entries: {str(e)}")
         raise HTTPException(status_code=500)
-    
+
     if es_index is not None:
 
         try:
@@ -2030,7 +2028,7 @@ async def create_entries_tags(
                 es_client,
                 es_index=es_index,
                 journal_id=journal_id,
-                entries=entries_objects
+                entries=entries_objects,
             )
 
         except Exception as e:
@@ -2042,10 +2040,10 @@ async def create_entries_tags(
     return entries_objects
 
 
-
-
 @app.delete(
-    "/{journal_id}/entries_tags", tags=["tags"], response_model=List[JournalEntryResponse]
+    "/{journal_id}/bulk_entries_tags",
+    tags=["tags"],
+    response_model=List[JournalEntryResponse],
 )
 async def delete_entries_tags(
     journal_id: UUID,
@@ -2054,10 +2052,9 @@ async def delete_entries_tags(
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
 ) -> List[JournalEntryResponse]:
-    
 
     """
-    Create tags for a journal entries of journal.
+    Delete tags for multiple journal entries.
     """
 
     ensure_journal_permission(
@@ -2067,7 +2064,6 @@ async def delete_entries_tags(
         journal_id,
         {JournalEntryScopes.UPDATE},
     )
-
 
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
     try:
@@ -2085,32 +2081,29 @@ async def delete_entries_tags(
         logger.error(f"Error retrieving journal: {str(e)}")
         raise HTTPException(status_code=500)
     es_index = journal.search_index
-    
+
     try:
         deleted_entry_ids = await actions.delete_journal_entries_tags(
-            db_session,
-            journal,
-            entries_tags_request
+            db_session, journal, entries_tags_request
         )
     except actions.CommitFailed as e:
-        logger.error(
-            f"Can't delete tags form entries"
+        logger.error(f"Can't delete tags form entries")
+        raise HTTPException(
+            status_code=409, detail=f"Can't delete tags from entries in database"
         )
-        raise HTTPException(status_code=409, detail=f"Can't delete tags from entries in database")
     except actions.EntriesNotFound as e:
-        logger.error(
-            f"Entries not found with entries"
+        logger.error(f"Entries not found with entries")
+        raise HTTPException(
+            status_code=404, detail=f"Not entries with ids: {e.entries}"
         )
-        raise HTTPException(status_code=404, detail=f"Not entries with ids: {e.entries}")
     except Exception as e:
         logger.error(f"Error journal entries tags update: {str(e)}")
         raise HTTPException(status_code=500)
-    
+
     entries_objects = await actions.get_journal_entries_with_tags(
-        db_session,
-        journal_entries_ids=deleted_entry_ids
+        db_session, journal_entries_ids=deleted_entry_ids
     )
-    
+
     if es_index is not None:
 
         try:
@@ -2119,7 +2112,7 @@ async def delete_entries_tags(
                 es_client,
                 es_index=es_index,
                 journal_id=journal_id,
-                entries=entries_objects
+                entries=entries_objects,
             )
 
         except Exception as e:
@@ -2128,11 +2121,7 @@ async def delete_entries_tags(
                 f"user ({request.state.user_id}): {repr(e)}"
             )
 
-
     return entries_objects
-    
-    
-
 
 
 @app.delete(

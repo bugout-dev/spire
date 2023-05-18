@@ -173,7 +173,7 @@ class ListJournalEntriesResponse(BaseModel):
 
 class CreateJournalEntryTagRequest(BaseModel):
     journal_entry_id: uuid.UUID
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
 
 
 class CreateEntriesTagsRequest(BaseModel):
@@ -181,7 +181,7 @@ class CreateEntriesTagsRequest(BaseModel):
 
 
 class CreateJournalEntryTagsAPIRequest(BaseModel):
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
 
 
 class DeleteJournalEntryTagAPIRequest(BaseModel):
@@ -195,7 +195,7 @@ class DeleteJournalEntriesByTagsAPIRequest(BaseModel):
 class JournalEntryTagsResponse(BaseModel):
     journal_id: uuid.UUID
     entry_id: uuid.UUID
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
 
 
 class JournalsEntriesTagsResponse(BaseModel):
@@ -219,7 +219,7 @@ class JournalSearchResult(BaseModel):
     content_url: str
     title: str
     content: Optional[str]
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
     score: float
