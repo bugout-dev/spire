@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Any, cast, Dict, List, Optional
 
-import requests
+import requests  # type: ignore
 
 logger = logging.getLogger(__name__)
 

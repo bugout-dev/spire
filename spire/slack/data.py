@@ -21,9 +21,9 @@ class Index(BaseModel):
 
 class BroodUser(BaseModel):
     id: uuid.UUID
-    username: Optional[str]
-    email: Optional[str]
-    token: Optional[uuid.UUID]
+    username: Optional[str] = None
+    email: Optional[str] = None
+    token: Optional[uuid.UUID] = None
 
 
 class BroodGroup(BaseModel):

@@ -10,7 +10,7 @@ from typing import Any, cast, Dict, List, Optional
 import urllib
 import urllib.parse
 
-import requests
+import requests  # type: ignore
 from sqlalchemy.orm import Session
 
 from . import admin as slack_admin

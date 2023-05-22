@@ -13,7 +13,7 @@ from fastapi import (
     HTTPException,
 )
 
-import requests
+import requests  # type: ignore
 from starlette.responses import RedirectResponse
 from sqlalchemy.orm import Session
 

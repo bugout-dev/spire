@@ -5,7 +5,7 @@ import base64
 import json
 import time
 import logging
-import dateutil.parser
+import dateutil.parser  # type: ignore
 from typing import Any, Dict, List, Optional
 import uuid
 
@@ -19,7 +19,7 @@ from fastapi import (
 )
 
 import jwt  # type: ignore
-import requests
+import requests  # type: ignore
 from starlette.responses import RedirectResponse
 from sqlalchemy.orm import Session
 

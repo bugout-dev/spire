@@ -8,7 +8,7 @@ import textwrap
 from typing import Any, Callable, cast, Dict, List, Union
 import uuid
 
-import requests
+import requests  # type: ignore
 from sqlalchemy.orm import Session
 
 from .data import Index

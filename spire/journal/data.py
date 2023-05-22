@@ -57,14 +57,14 @@ class RuleActions(Enum):
 class CreateJournalAPIRequest(BaseModel):
     # group_id is Optional to have possibility send null via update update_journal()
     name: str
-    group_id: Optional[str]
+    group_id: Optional[str] = None
     journal_type: JournalTypes = JournalTypes.DEFAULT
 
 
 class CreateJournalRequest(BaseModel):
     bugout_user_id: str
     name: str
-    search_index: Optional[str]
+    search_index: Optional[str] = None
 
 
 class JournalResponse(BaseModel):
@@ -81,8 +81,8 @@ class ListJournalsResponse(BaseModel):
 
 
 class UpdateJournalSpec(BaseModel):
-    holder_id: Optional[str]
-    name: Optional[str]
+    holder_id: Optional[str] = None
+    name: Optional[str] = None
 
 
 class JournalEntryIds(BaseModel):
@@ -90,10 +90,10 @@ class JournalEntryIds(BaseModel):
 
 
 class JournalSpec(BaseModel):
-    id: Optional[uuid.UUID]
-    bugout_user_id: Optional[str]
-    holder_ids: Optional[Set[str]]
-    name: Optional[str]
+    id: Optional[uuid.UUID] = None
+    bugout_user_id: Optional[str] = None
+    holder_ids: Optional[Set[str]] = None
+    name: Optional[str] = None
 
 
 class CreateJournalEntryRequest(BaseModel):
@@ -101,21 +101,21 @@ class CreateJournalEntryRequest(BaseModel):
     title: str
     content: str
     tags: List[str] = Field(default_factory=list)
-    context_url: Optional[str]
-    context_id: Optional[str]
-    context_type: Optional[str]
-    created_at: Optional[datetime]
+    context_url: Optional[str] = None
+    context_id: Optional[str] = None
+    context_type: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class JournalEntryContent(BaseModel):
     title: str
     content: str
     tags: List[str] = Field(default_factory=list)
-    context_url: Optional[str]
-    context_id: Optional[str]
-    context_type: Optional[str]
-    created_at: Optional[datetime]
-    locked_by: Optional[str]
+    context_url: Optional[str] = None
+    context_id: Optional[str] = None
+    context_type: Optional[str] = None
+    created_at: Optional[datetime] = None
+    locked_by: Optional[str] = None
 
 
 class JournalEntryListContent(BaseModel):
@@ -124,15 +124,15 @@ class JournalEntryListContent(BaseModel):
 
 class JournalEntryResponse(BaseModel):
     id: uuid.UUID
-    journal_url: Optional[str]
-    content_url: Optional[str]
-    title: Optional[str]
-    content: Optional[str]
+    journal_url: Optional[str] = None
+    content_url: Optional[str] = None
+    title: Optional[str] = None
+    content: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-    context_url: Optional[str]
-    context_type: Optional[str]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    context_url: Optional[str] = None
+    context_type: Optional[str] = None
     context_id: Optional[str] = None
     locked_by: Optional[str] = None
 
@@ -152,18 +152,18 @@ class DronesStatisticsResponce(BaseModel):
 
 
 class JournalStatisticsSpecs(BaseModel):
-    entries_hour: Optional[bool]
-    entries_day: Optional[bool]
-    entries_week: Optional[bool]
-    entries_month: Optional[bool]
-    entries_total: Optional[bool]
-    most_used_tags: Optional[bool]
+    entries_hour: Optional[bool] = None
+    entries_day: Optional[bool] = None
+    entries_week: Optional[bool] = None
+    entries_month: Optional[bool] = None
+    entries_total: Optional[bool] = None
+    most_used_tags: Optional[bool] = None
 
 
 class UpdateStatsRequest(BaseModel):
     stats_version: int
-    stats_type: List[str] = []
-    timescale: List[str] = []
+    stats_type: List[str] = Field(default_factory=list)
+    timescale: List[str] = Field(default_factory=list)
     push_to_bucket: Optional[bool] = True
 
 
@@ -173,11 +173,15 @@ class ListJournalEntriesResponse(BaseModel):
 
 class CreateJournalEntryTagRequest(BaseModel):
     journal_entry_id: uuid.UUID
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
+
+
+class CreateEntriesTagsRequest(BaseModel):
+    entries: List[CreateJournalEntryTagRequest] = Field(default_factory=list)
 
 
 class CreateJournalEntryTagsAPIRequest(BaseModel):
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
 
 
 class DeleteJournalEntryTagAPIRequest(BaseModel):
@@ -191,7 +195,11 @@ class DeleteJournalEntriesByTagsAPIRequest(BaseModel):
 class JournalEntryTagsResponse(BaseModel):
     journal_id: uuid.UUID
     entry_id: uuid.UUID
-    tags: List[str]
+    tags: List[str] = Field(default_factory=list)
+
+
+class JournalsEntriesTagsResponse(BaseModel):
+    entries: List[JournalEntryTagsResponse] = Field(default_factory=list)
 
 
 class JournalEntriesByTagsDeletionResponse(BaseModel):
@@ -210,8 +218,8 @@ class JournalSearchResult(BaseModel):
     entry_url: str
     content_url: str
     title: str
-    content: Optional[str]
-    tags: List[str]
+    content: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
     score: float
@@ -278,7 +286,7 @@ class ContextSpec(BaseModel):
 
 class JournalTTLRuleResponse(BaseModel):
     id: int
-    journal_id: Optional[uuid.UUID]
+    journal_id: Optional[uuid.UUID] = None
     name: str
     conditions: Dict[str, Any]
     action: RuleActions
