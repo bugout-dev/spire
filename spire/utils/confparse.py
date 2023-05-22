@@ -1,5 +1,5 @@
 from pathlib import Path
-import toml # type: ignore
+import toml  # type: ignore
 
 
 MODULE_PATH = Path(__file__).parent.parent.parent.resolve()

@@ -130,7 +130,7 @@ class JournalEntryResponse(BaseModel):
     content: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None 
+    updated_at: Optional[datetime] = None
     context_url: Optional[str] = None
     context_type: Optional[str] = None
     context_id: Optional[str] = None

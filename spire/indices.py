@@ -1,8 +1,8 @@
 import logging
 from typing import Any, Callable, cast, Dict, List, Union
 
-import requests # type: ignore
-from requests.api import head # type: ignore
+import requests  # type: ignore
+from requests.api import head  # type: ignore
 from sqlalchemy.orm import Session
 
 from .slack.data import Index

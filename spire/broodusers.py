@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 import uuid
 
 from bugout.app import Bugout  # type: ignore
-import requests # type: ignore
+import requests  # type: ignore
 from sqlalchemy.orm import Session
 
 from .utils.settings import auth_url_from_env, SPIRE_API_URL, BUGOUT_CLIENT_ID_HEADER

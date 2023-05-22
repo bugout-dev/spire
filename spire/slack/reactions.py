@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any, cast, Dict, List, Union
 
-import requests # type: ignore
+import requests  # type: ignore
 from concurrent.futures import ThreadPoolExecutor
 
 

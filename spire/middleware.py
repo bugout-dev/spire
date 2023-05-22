@@ -4,7 +4,7 @@ import json
 from tokenize import group
 from typing import Callable, Awaitable, List, Optional
 
-import requests # type: ignore
+import requests  # type: ignore
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, Response

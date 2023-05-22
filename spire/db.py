@@ -4,7 +4,7 @@ Spire database connection
 from contextlib import contextmanager
 from typing import Optional
 
-import redis # type: ignore
+import redis  # type: ignore
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
