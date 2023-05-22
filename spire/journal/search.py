@@ -10,7 +10,7 @@ import logging
 from typing import Any, Callable, Dict, Optional, List, Tuple, Union
 from uuid import UUID
 
-from dateutil.parser import parse as parse_datetime
+from dateutil.parser import parse as parse_datetime  # type: ignore
 import elasticsearch
 from elasticsearch.client import IndicesClient
 from elasticsearch.helpers import bulk

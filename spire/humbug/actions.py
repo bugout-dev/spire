@@ -3,7 +3,7 @@ from typing import cast, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
-import requests
+import requests  # type: ignore
 
 from ..journal.actions import create_journal_entries_pack
 from .data import HumbugEventDependencies, HumbugReport
