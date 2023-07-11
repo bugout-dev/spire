@@ -47,7 +47,7 @@ setup(
         "multidict",
         "protobuf==3.19.1",
         "psycopg2-binary>=2.9.1",
-        "pydantic",
+        "pydantic<=1.10.2",
         "PyJWT==1.7.1",
         "redis",
         "requests",

@@ -24,6 +24,7 @@ from .. import db
 from .. import es
 from . import actions
 from .data import (
+    JournalRepresentationTypes,
     JournalScopes,
     JournalEntryScopes,
     CreateJournalAPIRequest,
@@ -68,6 +69,8 @@ from .data import (
     StatsTypes,
     TimeScale,
     TagUsage,
+    EntityCollectionsResponse,
+    EntityCollectionResponse,
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
@@ -86,6 +89,7 @@ from ..utils.settings import (
     BUGOUT_DRONES_TOKEN,
     BUGOUT_DRONES_TOKEN_HEADER,
     BUGOUT_CLIENT_ID_HEADER,
+    SPIRE_RAW_ORIGINS_LST,
 )
 from .version import SPIRE_JOURNALS_VERSION
 
@@ -114,17 +118,10 @@ app = FastAPI(
     redoc_url=f"/{DOCS_TARGET_PATH}",
 )
 
-allowed_origins = [
-    "https://alpha.bugout.dev",
-    "https://bugout.dev",
-    "https://journal.bugout.dev",
-    "http://localhost:3000",
-]
-
 # Important to save consistency for middlewares (stack queue)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=SPIRE_RAW_ORIGINS_LST,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -450,10 +447,18 @@ async def delete_journal_scopes_handler(
         raise HTTPException(status_code=404, detail="Journal not found")
 
 
-@app.get("/", tags=["journals"], response_model=ListJournalsResponse)
+@app.get(
+    "/",
+    tags=["journals"],
+    response_model=Union[ListJournalsResponse, EntityCollectionsResponse],
+)
 async def list_journals(
-    request: Request, db_session: Session = Depends(db.yield_connection_from_env)
-) -> ListJournalsResponse:
+    request: Request,
+    db_session: Session = Depends(db.yield_connection_from_env),
+    representation: JournalRepresentationTypes = Query(
+        JournalRepresentationTypes.JOURNAL
+    ),
+) -> Union[ListJournalsResponse, EntityCollectionsResponse]:
     """
     List all journals user has access to.
     """
@@ -463,24 +468,16 @@ async def list_journals(
             user_id=request.state.user_id,
             user_group_id_list=request.state.user_group_id_list,
         )
-
-        journal_responses = [
-            JournalResponse(
-                id=journal.id,
-                bugout_user_id=journal.bugout_user_id,
-                holder_ids=journal.holders_ids,
-                name=journal.name,
-                created_at=journal.created_at,
-                updated_at=journal.updated_at,
-            )
-            for journal in journals
-        ]
-
-        return ListJournalsResponse(journals=journal_responses)
-
     except actions.JournalNotFound:
         logger.error(f"Journals not found for user={request.state.user_id}")
         raise HTTPException(status_code=404)
+    except Exception as err:
+        logger.error(err)
+        raise HTTPException(status_code=500)
+
+    return actions.journal_list_representation_parser(
+        representation=representation, journals=journals
+    )
 
 
 @app.post("/", tags=["journals"], response_model=JournalResponse)
@@ -750,7 +747,6 @@ async def generate_journal_stats(
         raise HTTPException(status_code=500)
 
     if stats_version >= 5:
-
         available_timescales = [timescale.value for timescale in TimeScale]
 
         available_stats_files = [stats_type.value for stats_type in StatsTypes]
@@ -799,14 +795,12 @@ async def generate_journal_stats(
         statistics.journal_statistics = stats_urls
 
     elif stats_version < 5:
-
         stats_files = ["stats", "errors", "users"]
 
         stats_urls = {}
 
         s3_client = boto3.client("s3")
         for stats_file in stats_files:
-
             # Generate link to S3 buket
             try:
                 result_key = f"{DRONES_BUCKET_STATISTICS_PREFIX}/{journal_id}/{s3_version_prefix}{stats_file}.json"
@@ -1562,7 +1556,6 @@ async def delete_entries_by_search(
     )
 
     for _ in range(1 + total_results // limit):
-
         total_results, rows = search.search_database(
             db_session, journal_id, normalized_query, limit, offset
         )
@@ -1965,7 +1958,6 @@ async def create_entries_tags(
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
 ) -> List[JournalEntryResponse]:
-
     """
     Create tags for multiple journal entries.
     """
@@ -2021,9 +2013,7 @@ async def create_entries_tags(
         raise HTTPException(status_code=500)
 
     if es_index is not None:
-
         try:
-
             search.bulk_create_entries(
                 es_client,
                 es_index=es_index,
@@ -2052,7 +2042,6 @@ async def delete_entries_tags(
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
 ) -> List[JournalEntryResponse]:
-
     """
     Delete tags for multiple journal entries.
     """
@@ -2105,9 +2094,7 @@ async def delete_entries_tags(
     )
 
     if es_index is not None:
-
         try:
-
             search.bulk_create_entries(
                 es_client,
                 es_index=es_index,

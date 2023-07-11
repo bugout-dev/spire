@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any, List, Optional, Set, Dict, Union
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
 from .models import HolderType
 
@@ -52,6 +52,11 @@ class StatsTypes(Enum):
 class RuleActions(Enum):
     remove = "remove"
     unlock = "unlock"
+
+
+class JournalRepresentationTypes(Enum):
+    ENTITY = "entity"
+    JOURNAL = "journal"
 
 
 class CreateJournalAPIRequest(BaseModel):
@@ -305,3 +310,17 @@ class DeletingQuery(BaseModel):
 class TagUsage(BaseModel):
     tag: str
     count: int
+
+
+# Journal Entity representation
+class EntityCollectionResponse(BaseModel):
+    collection_id: uuid.UUID
+    bugout_user_id: str
+    holder_ids: Set[str] = Field(default_factory=set)
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class EntityCollectionsResponse(BaseModel):
+    collections: List[EntityCollectionResponse] = Field(default_factory=list)

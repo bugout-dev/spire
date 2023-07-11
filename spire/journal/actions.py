@@ -34,6 +34,11 @@ from .data import (
     JournalEntryResponse,
     JournalPermission,
     ContextSpec,
+    JournalRepresentationTypes,
+    EntityCollectionsResponse,
+    EntityCollectionResponse,
+    JournalResponse,
+    ListJournalsResponse,
 )
 from .models import (
     Journal,
@@ -388,7 +393,6 @@ async def journal_statistics(
     tags: List[str],
     user_group_id_list: Optional[List[str]] = None,
 ) -> JournalStatisticsResponse:
-
     """
     Return journals statistics.
     For now just amount of entries for default periods.
@@ -1102,7 +1106,6 @@ async def create_journal_entries_tags(
     journal: Journal,
     entries_tags_request: CreateEntriesTagsRequest,
 ) -> List[UUID]:
-
     """
     Create tags for entries in journal.
     """
@@ -1142,7 +1145,6 @@ async def delete_journal_entries_tags(
     journal: Journal,
     entries_tags_request: CreateEntriesTagsRequest,
 ) -> List[UUID]:
-
     """
     Delete tags for entries in journal.
     """
@@ -1492,14 +1494,12 @@ async def entries_exists_check(
 async def dedublicate_entries_tags(
     entries_tags: CreateEntriesTagsRequest,
 ) -> List[Dict[str, Any]]:
-
     values: List[Dict[str, Any]] = []
 
     for entry_tag_request in entries_tags.entries:
         entry_id = entry_tag_request.journal_entry_id
 
         for tag in entry_tag_request.tags:
-
             insert_object = {
                 "journal_entry_id": entry_id,
                 "tag": tag,
@@ -1518,3 +1518,44 @@ async def dedublicate_entries_tags(
             deduplicated_values.append(d)
 
     return deduplicated_values
+
+
+# Manual representation of journal parser
+def journal_representation_parser(
+    representation: JournalRepresentationTypes, journal: Journal
+):
+    if representation == JournalRepresentationTypes.ENTITY:
+        return EntityCollectionResponse(
+            collection_id=journal.id,
+            bugout_user_id=journal.bugout_user_id,
+            holder_ids=journal.holders_ids,
+            name=journal.name,
+            created_at=journal.created_at,
+            updated_at=journal.updated_at,
+        )
+    return JournalResponse(
+        id=journal.id,
+        bugout_user_id=journal.bugout_user_id,
+        holder_ids=journal.holders_ids,
+        name=journal.name,
+        created_at=journal.created_at,
+        updated_at=journal.updated_at,
+    )
+
+
+def journal_list_representation_parser(
+    representation: JournalRepresentationTypes, journals: List[Journal]
+):
+    if representation == JournalRepresentationTypes.ENTITY:
+        return EntityCollectionsResponse(
+            collections=[
+                journal_representation_parser(representation, journal)
+                for journal in journals
+            ]
+        )
+    return ListJournalsResponse(
+        journals=[
+            journal_representation_parser(representation, journal)
+            for journal in journals
+        ]
+    )
