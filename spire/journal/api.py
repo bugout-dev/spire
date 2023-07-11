@@ -74,6 +74,7 @@ from .data import (
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
+from .representations import journal_representation_parsers
 from .models import Journal, JournalEntryLock, JournalEntryTag
 from . import search
 from ..utils.settings import (
@@ -471,14 +472,12 @@ async def list_journals(
 
         parsed_journals = []
         for j in journals:
-            obj = await actions.journal_representation_parsers[representation][
-                "journal"
-            ](j)
+            obj = await journal_representation_parsers[representation]["journal"](j)
             parsed_journals.append(obj)
 
-        result = await actions.journal_representation_parsers[representation][
-            "journals"
-        ](parsed_journals)
+        result = await journal_representation_parsers[representation]["journals"](
+            parsed_journals
+        )
     except actions.JournalNotFound:
         logger.error(f"Journals not found for user={request.state.user_id}")
         raise HTTPException(status_code=404)
@@ -1054,12 +1053,12 @@ async def get_entries(
         )
         tags = [tag.tag for tag in tag_objects]
 
-        obj = await actions.journal_representation_parsers[representation]["entry"](
+        obj = await journal_representation_parsers[representation]["entry"](
             e, journal_id, journal_url, tags
         )
         parsed_entries.append(obj)
 
-    return await actions.journal_representation_parsers[representation]["entries"](
+    return await journal_representation_parsers[representation]["entries"](
         parsed_entries
     )
 
