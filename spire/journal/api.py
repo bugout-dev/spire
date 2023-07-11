@@ -70,7 +70,7 @@ from .data import (
     TimeScale,
     TagUsage,
     EntityCollectionsResponse,
-    EntityCollectionResponse,
+    EntitiesResponse,
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
@@ -468,6 +468,17 @@ async def list_journals(
             user_id=request.state.user_id,
             user_group_id_list=request.state.user_group_id_list,
         )
+
+        parsed_journals = []
+        for j in journals:
+            obj = await actions.journal_representation_parsers[representation][
+                "journal"
+            ](j)
+            parsed_journals.append(obj)
+
+        result = await actions.journal_representation_parsers[representation][
+            "journals"
+        ](parsed_journals)
     except actions.JournalNotFound:
         logger.error(f"Journals not found for user={request.state.user_id}")
         raise HTTPException(status_code=404)
@@ -475,9 +486,7 @@ async def list_journals(
         logger.error(err)
         raise HTTPException(status_code=500)
 
-    return actions.journal_list_representation_parser(
-        representation=representation, journals=journals
-    )
+    return result
 
 
 @app.post("/", tags=["journals"], response_model=JournalResponse)
@@ -981,7 +990,9 @@ async def create_journal_entries_pack(
 
 
 @app.get(
-    "/{journal_id}/entries", tags=["entries"], response_model=ListJournalEntriesResponse
+    "/{journal_id}/entries",
+    tags=["entries"],
+    response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
 )
 async def get_entries(
     journal_id: UUID,
@@ -992,11 +1003,13 @@ async def get_entries(
     context_url: Optional[str] = Query(None),
     limit: int = Query(10),
     offset: int = Query(0),
-) -> ListJournalEntriesResponse:
+    representation: JournalRepresentationTypes = Query(
+        JournalRepresentationTypes.JOURNAL
+    ),
+) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
     """
     List all entries in a journal.
     """
-    # TODO(neeraj): Pagination
     ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -1030,30 +1043,25 @@ async def get_entries(
 
     url: str = str(request.url).rstrip("/")
     journal_url = "/".join(url.split("/")[:-1])
-    individual_responses = []
-    for journal_entry in entries:
+    parsed_entries = []
+
+    for e in entries:
         tag_objects = await actions.get_journal_entry_tags(
             db_session,
             journal_spec,
-            journal_entry.id,
+            e.id,
             user_group_id_list=request.state.user_group_id_list,
         )
         tags = [tag.tag for tag in tag_objects]
-        entry_response = JournalEntryResponse(
-            id=journal_entry.id,
-            journal_url=journal_url,
-            title=journal_entry.title,
-            content=journal_entry.content,
-            tags=tags,
-            created_at=journal_entry.created_at,
-            updated_at=journal_entry.updated_at,
-            context_url=journal_entry.context_url,
-            context_type=journal_entry.context_type,
-            context_id=journal_entry.context_id,
-        )
-        individual_responses.append(entry_response)
 
-    return ListJournalEntriesResponse(entries=individual_responses)
+        obj = await actions.journal_representation_parsers[representation]["entry"](
+            e, journal_id, journal_url, tags
+        )
+        parsed_entries.append(obj)
+
+    return await actions.journal_representation_parsers[representation]["entries"](
+        parsed_entries
+    )
 
 
 @app.get(

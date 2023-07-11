@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any, List, Optional, Set, Dict, Union
 import uuid
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, root_validator, Extra
 
 from .models import HolderType
 
@@ -312,7 +312,7 @@ class TagUsage(BaseModel):
     count: int
 
 
-# Journal Entity representation
+# Entity representation
 class EntityCollectionResponse(BaseModel):
     collection_id: uuid.UUID
     bugout_user_id: str
@@ -324,3 +324,22 @@ class EntityCollectionResponse(BaseModel):
 
 class EntityCollectionsResponse(BaseModel):
     collections: List[EntityCollectionResponse] = Field(default_factory=list)
+
+
+class EntityResponse(BaseModel):
+    entity_id: uuid.UUID
+    collection_id: uuid.UUID
+    address: Optional[str] = None
+    blockchain: Optional[str] = None
+    name: Optional[str] = None
+
+    required_fields: Optional[List[Dict[str, Any]]] = None
+    secondary_fields: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    locked_by: Optional[str] = None
+
+
+class EntitiesResponse(BaseModel):
+    entities: List[EntityResponse] = Field(default_factory=list)
