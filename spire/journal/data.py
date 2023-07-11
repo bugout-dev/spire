@@ -238,7 +238,7 @@ class JournalSearchResultsResponse(BaseModel):
     offset: int
     next_offset: Optional[int]
     max_score: float
-    results: List[JournalSearchResult]
+    results: List[JournalSearchResult] = Field(default_factory=list)
 
 
 class JournalPermissionsSpec(BaseModel):
@@ -343,3 +343,11 @@ class EntityResponse(BaseModel):
 
 class EntitiesResponse(BaseModel):
     entities: List[EntityResponse] = Field(default_factory=list)
+
+
+class EntitySearchResponse(BaseModel):
+    total_results: int
+    offset: int
+    next_offset: Optional[int] = None
+    max_score: float
+    results: List[EntityResponse] = Field(default_factory=list)

@@ -71,6 +71,7 @@ from .data import (
     TagUsage,
     EntityCollectionsResponse,
     EntitiesResponse,
+    EntitySearchResponse,
 )
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
@@ -2231,7 +2232,7 @@ async def delete_tag(
 @app.get(
     "/{journal_id}/search",
     tags=["search"],
-    response_model=JournalSearchResultsResponse,
+    response_model=Union[JournalSearchResultsResponse, EntitySearchResponse],
 )
 async def search_journal(
     journal_id: UUID,
@@ -2245,7 +2246,10 @@ async def search_journal(
     order: search.ResultsOrder = Query(search.ResultsOrder.DESCENDING),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> JournalSearchResultsResponse:
+    representation: JournalRepresentationTypes = Query(
+        JournalRepresentationTypes.JOURNAL
+    ),
+) -> Union[JournalSearchResultsResponse, EntitySearchResponse]:
     """
     Executes a search query against the given journal.
     """
@@ -2280,7 +2284,7 @@ async def search_journal(
     url: str = str(request.url).rstrip("/")
     journal_url = "/".join(url.split("/")[:-1])
 
-    results: List[JournalSearchResult] = []
+    results: List[Any] = []
 
     es_index = journal.search_index
     if es_index is None:
@@ -2292,18 +2296,23 @@ async def search_journal(
         for entry in rows:
             entry_url = f"{journal_url}/entries/{str(entry.id)}"
             content_url = f"{entry_url}/content"
-            result = JournalSearchResult(
-                entry_url=entry_url,
-                content_url=content_url,
-                title=entry.title,
-                content=entry.content,
-                tags=entry.tags,
-                created_at=str(entry.created_at),
-                updated_at=str(entry.updated_at),
-                score=1.0,
-                context_type=entry.context_type,
-                context_id=entry.context_id,
-                context_url=entry.context_url,
+
+            result = await journal_representation_parsers[representation][
+                "search_entry"
+            ](
+                str(entry.id),
+                str(journal.id),
+                entry_url,
+                content_url,
+                entry.title,
+                entry.tags,
+                str(entry.created_at),
+                str(entry.updated_at),
+                1.0,
+                entry.context_type,
+                entry.context_id,
+                entry.context_url,
+                entry.content,
             )
             results.append(result)
     else:
@@ -2334,18 +2343,23 @@ async def search_journal(
             else:
                 source_tags = cast(List[str], source_tags)
                 tags = source_tags
-            result = JournalSearchResult(
-                entry_url=entry_url,
-                content_url=content_url,
-                title=source.get("title", ""),
-                content=source.get("content", "") if content is True else None,
-                tags=tags,
-                created_at=datetime.fromtimestamp(source.get("created_at")).isoformat(),
-                updated_at=datetime.fromtimestamp(source.get("updated_at")).isoformat(),
-                score=hit.get("_score"),
-                context_type=source.get("context_type"),
-                context_id=source.get("context_id"),
-                context_url=source.get("context_url"),
+
+            result = await journal_representation_parsers[representation][
+                "search_entry"
+            ](
+                source.get("entry_id"),
+                str(journal.id),
+                entry_url,
+                content_url,
+                source.get("title", ""),
+                tags,
+                datetime.fromtimestamp(source.get("created_at")).isoformat(),
+                datetime.fromtimestamp(source.get("updated_at")).isoformat(),
+                hit.get("_score"),
+                source.get("context_type"),
+                source.get("context_id"),
+                source.get("context_url"),
+                source.get("content", "") if content is True else None,
             )
             results.append(result)
 
@@ -2353,12 +2367,8 @@ async def search_journal(
     if offset + limit < total_results:
         next_offset = offset + limit
 
-    response = JournalSearchResultsResponse(
-        total_results=total_results,
-        offset=offset,
-        next_offset=next_offset,
-        max_score=max_score,
-        results=results,
+    response = await journal_representation_parsers[representation]["search_entries"](
+        total_results, offset, max_score, next_offset, results
     )
 
     bugout_client_id = bugout_client_id_from_request(request)
