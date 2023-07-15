@@ -1,98 +1,97 @@
-from datetime import datetime, timezone
+import json
 import logging
-from typing import Any, cast, Dict, List, Optional, Set, Union, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 from uuid import UUID
 
-
+import boto3
+import requests  # type: ignore
 from elasticsearch import Elasticsearch
 from fastapi import (
-    FastAPI,
-    Query,
-    Request,
-    Depends,
     BackgroundTasks,
+    Body,
+    Depends,
+    FastAPI,
     HTTPException,
     Path,
+    Query,
+    Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
-import requests  # type: ignore
-
 from sqlalchemy.orm import Session
-import boto3
 
-from .. import db
-from .. import es
-from . import actions
-from .data import (
-    JournalRepresentationTypes,
-    JournalScopes,
-    JournalEntryScopes,
-    CreateJournalAPIRequest,
-    CreateJournalRequest,
-    CreateJournalEntryRequest,
-    JournalEntryContent,
-    JournalEntryListContent,
-    CreateJournalEntryTagRequest,
-    CreateEntriesTagsRequest,
-    CreateJournalEntryTagsAPIRequest,
-    DeleteJournalEntryTagAPIRequest,
-    DeleteJournalEntriesByTagsAPIRequest,
-    DronesStatisticsResponce,
-    JournalEntriesByTagsDeletionResponse,
-    JournalEntriesBySearchDeletionResponse,
-    DeletingQuery,
-    JournalSpec,
-    JournalResponse,
-    JournalEntryResponse,
-    JournalEntryTagsResponse,
-    JournalsEntriesTagsResponse,
-    JournalEntryIds,
-    JournalStatisticsSpecs,
-    JournalStatisticsResponse,
-    ListJournalsResponse,
-    ListJournalEntriesResponse,
-    JournalSearchResult,
-    JournalSearchResultsResponse,
-    JournalEntryListContent,
-    UpdateStatsRequest,
-    UpdateJournalSpec,
-    JournalPermissionsSpec,
-    ListJournalScopeSpec,
-    UpdateJournalScopesAPIRequest,
-    JournalScopesAPIRequest,
-    ScopeResponse,
-    ListScopesResponse,
-    JournalPermissionsResponse,
-    ContextSpec,
-    JournalTypes,
-    EntryUpdateTagActions,
-    StatsTypes,
-    TimeScale,
-    TagUsage,
-    EntityCollectionsResponse,
-    EntitiesResponse,
-    EntitySearchResponse,
-)
+from .. import db, es
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
-from .representations import journal_representation_parsers
-from .models import Journal, JournalEntryLock, JournalEntryTag
-from . import search
 from ..utils.settings import (
-    DEFAULT_JOURNALS_ES_INDEX,
-    BULK_CHUNKSIZE,
-    DRONES_BUCKET,
-    DRONES_BUCKET_STATISTICS_PREFIX,
-    STATISTICS_S3_PRESIGNED_URL_EXPIRATION_TIME,
-    SPIRE_OPENAPI_LIST,
-    DOCS_TARGET_PATH,
-    DOCS_PATHS,
-    DRONES_URL,
+    BUGOUT_CLIENT_ID_HEADER,
     BUGOUT_DRONES_TOKEN,
     BUGOUT_DRONES_TOKEN_HEADER,
-    BUGOUT_CLIENT_ID_HEADER,
+    BULK_CHUNKSIZE,
+    DEFAULT_JOURNALS_ES_INDEX,
+    DOCS_PATHS,
+    DOCS_TARGET_PATH,
+    DRONES_BUCKET,
+    DRONES_BUCKET_STATISTICS_PREFIX,
+    DRONES_URL,
+    SPIRE_OPENAPI_LIST,
     SPIRE_RAW_ORIGINS_LST,
+    STATISTICS_S3_PRESIGNED_URL_EXPIRATION_TIME,
 )
+from . import actions, search
+from .data import (
+    ContextSpec,
+    CreateEntriesTagsRequest,
+    CreateJournalAPIRequest,
+    CreateJournalEntryRequest,
+    CreateJournalEntryTagRequest,
+    CreateJournalEntryTagsAPIRequest,
+    CreateJournalRequest,
+    DeleteJournalEntriesByTagsAPIRequest,
+    DeleteJournalEntryTagAPIRequest,
+    DeletingQuery,
+    DronesStatisticsResponce,
+    EntitiesResponse,
+    Entity,
+    EntityCollectionsResponse,
+    EntityResponse,
+    EntitySearchResponse,
+    EntryUpdateTagActions,
+    JournalEntriesBySearchDeletionResponse,
+    JournalEntriesByTagsDeletionResponse,
+    JournalEntryContent,
+    JournalEntryIds,
+    JournalEntryListContent,
+    JournalEntryResponse,
+    JournalEntryScopes,
+    JournalEntryTagsResponse,
+    JournalPermissionsResponse,
+    JournalPermissionsSpec,
+    JournalRepresentationTypes,
+    JournalResponse,
+    JournalScopes,
+    JournalScopesAPIRequest,
+    JournalSearchResult,
+    JournalSearchResultsResponse,
+    JournalsEntriesTagsResponse,
+    JournalSpec,
+    JournalStatisticsResponse,
+    JournalStatisticsSpecs,
+    JournalTypes,
+    ListJournalEntriesResponse,
+    ListJournalScopeSpec,
+    ListJournalsResponse,
+    ListScopesResponse,
+    ScopeResponse,
+    StatsTypes,
+    TagUsage,
+    TimeScale,
+    UpdateJournalScopesAPIRequest,
+    UpdateJournalSpec,
+    UpdateStatsRequest,
+)
+from .models import Journal, JournalEntryLock, JournalEntryTag
+from .representations import journal_representation_parsers, parse_entity_to_entry
 from .version import SPIRE_JOURNALS_VERSION
 
 SUBMODULE_NAME = "journals"
@@ -451,7 +450,7 @@ async def delete_journal_scopes_handler(
 
 @app.get(
     "/",
-    tags=["journals"],
+    tags=["journals", "collections"],
     response_model=Union[ListJournalsResponse, EntityCollectionsResponse],
 )
 async def list_journals(
@@ -833,15 +832,18 @@ async def generate_journal_stats(
 
 
 @app.post(
-    "/{journal_id}/entries", tags=["entries"], response_model=JournalEntryResponse
+    "/{journal_id}/entries",
+    tags=["entries"],
+    response_model=Union[JournalEntryResponse, EntityResponse],
 )
+@app.post("/{journal_id}/entities", tags=["entities"])
 async def create_journal_entry(
-    journal_id: UUID,
-    entry_request: JournalEntryContent,
     request: Request,
+    journal_id: UUID = Path(...),
+    entry_request: Union[Entity, JournalEntryContent] = Body(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> JournalEntryResponse:
+) -> Union[JournalEntryResponse, EntityResponse]:
     """
     Creates a journal entry
     """
@@ -852,22 +854,44 @@ async def create_journal_entry(
         journal_id,
         {JournalEntryScopes.CREATE},
     )
-
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    creation_request = CreateJournalEntryRequest(
-        journal_spec=journal_spec,
-        title=entry_request.title,
-        content=entry_request.content,
-        tags=entry_request.tags,
-        context_type=entry_request.context_type,
-        context_id=entry_request.context_id,
-        context_url=entry_request.context_url,
-    )
 
-    if entry_request.created_at is not None:
-        created_at_utc = datetime.astimezone(entry_request.created_at, tz=timezone.utc)
-        created_at = created_at_utc.replace(tzinfo=None)
-        creation_request.created_at = created_at
+    tags: List[str]
+    representation: JournalRepresentationTypes
+    if type(entry_request) == JournalEntryContent:
+        representation = JournalRepresentationTypes.JOURNAL
+        creation_request = CreateJournalEntryRequest(
+            journal_spec=journal_spec,
+            title=entry_request.title,
+            content=entry_request.content,
+            tags=entry_request.tags,
+            context_type=entry_request.context_type,
+            context_id=entry_request.context_id,
+            context_url=entry_request.context_url,
+        )
+
+        if entry_request.created_at is not None:
+            created_at_utc = datetime.astimezone(
+                entry_request.created_at, tz=timezone.utc
+            )
+            created_at = created_at_utc.replace(tzinfo=None)
+            creation_request.created_at = created_at
+
+        tags = entry_request.tags if entry_request.tags is not None else []
+    elif type(entry_request) == Entity:
+        representation = JournalRepresentationTypes.ENTITY
+        title, tags, content = parse_entity_to_entry(
+            create_entity=entry_request,
+        )
+        creation_request = CreateJournalEntryRequest(
+            journal_spec=journal_spec,
+            title=title,
+            content=json.dumps(content),
+            tags=tags,
+            context_type="entity",
+        )
+    else:
+        raise HTTPException(status_code=500)
 
     es_index = journal.search_index
 
@@ -886,8 +910,6 @@ async def create_journal_entry(
     except Exception as e:
         logger.error(f"Error creating journal entry: {str(e)}")
         raise HTTPException(status_code=500)
-
-    tags = entry_request.tags if entry_request.tags is not None else []
 
     if es_index is not None:
         try:
@@ -914,17 +936,8 @@ async def create_journal_entry(
     url: str = str(request.url).rstrip("/")
     journal_url = "/".join(url.split("/")[:-1])
 
-    return JournalEntryResponse(
-        id=journal_entry.id,
-        journal_url=journal_url,
-        title=journal_entry.title,
-        content=journal_entry.content,
-        tags=tags,
-        created_at=journal_entry.created_at,
-        updated_at=journal_entry.updated_at,
-        context_url=journal_entry.context_url,
-        context_type=journal_entry.context_type,
-        locked_by=entry_lock.locked_by,
+    return await journal_representation_parsers[representation]["entry"](
+        journal_entry, journal_entry.journal_id, journal_url, tags, entry_lock.locked_by
     )
 
 
@@ -992,6 +1005,11 @@ async def create_journal_entries_pack(
 @app.get(
     "/{journal_id}/entries",
     tags=["entries"],
+    response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
+)
+@app.get(
+    "/{journal_id}/entities",
+    tags=["entities"],
     response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
 )
 async def get_entries(

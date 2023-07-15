@@ -5,24 +5,30 @@ Avoided pydantic modifications to save unique cases support, FastAPI response_mo
 """
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Tuple
+import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 from uuid import UUID
+
+from web3 import Web3
 
 from .data import (
     EntitiesResponse,
+    Entity,
     EntityCollectionResponse,
     EntityCollectionsResponse,
     EntityResponse,
+    EntitySearchResponse,
     JournalEntryResponse,
     JournalRepresentationTypes,
     JournalResponse,
-    ListJournalEntriesResponse,
-    ListJournalsResponse,
     JournalSearchResult,
     JournalSearchResultsResponse,
-    EntitySearchResponse,
+    ListJournalEntriesResponse,
+    ListJournalsResponse,
 )
 from .models import Journal, JournalEntry
+
+logger = logging.getLogger(__name__)
 
 
 def parse_entry_tags_to_entity_fields(
@@ -48,6 +54,54 @@ def parse_entry_tags_to_entity_fields(
         )
 
     return address, blockchain, required_fields
+
+
+def parse_entity_to_entry(
+    create_entity: Entity,
+) -> Tuple[str, List[str], Dict[str, Any]]:
+    """
+    Parse Entity create request structure to Bugout journal scheme.
+    """
+    title = f"{create_entity.name}"
+    tags: List[str] = []
+    content: Dict[str, Any] = {}
+
+    for field, vals in create_entity._iter():
+        if field == "address":
+            try:
+                address = Web3.toChecksumAddress(cast(str, vals))
+            except Exception:
+                logger.info(f"Unknown type of web3 address {vals}")
+                address = vals
+            title = f"{address} - {title}"
+            tags.append(f"{field}:{address}")
+
+        elif field == "blockchain":
+            tags.append(f"{field}:{vals}")
+
+        elif field == "required_fields":
+            required_fields = []
+            for val in vals:
+                for f, v in val.items():
+                    if isinstance(v, list):
+                        for vl in v:
+                            if len(f) >= 128 and len(vl) >= 128:
+                                logger.warn(f"Too long key:value {f}:{vl}")
+                                continue
+                            required_fields.append(f"{str(f)}:{str(vl)}")
+                    else:
+                        if len(f) >= 128 and len(vl) >= 128:
+                            logger.warn(f"Too long key:value {f}:{vl}")
+                            continue
+                        required_fields.append(f"{f}:{v}")
+
+            tags.extend(required_fields)
+
+        elif field == "extra":
+            for k, v in vals.items():
+                content[k] = v
+
+    return title, tags, content
 
 
 # Journal parsers
@@ -89,6 +143,7 @@ async def parse_entry_model(
     journal_id: UUID,
     journal_url: Optional[str] = None,
     tags: List[str] = [],
+    locked_by: Optional[str] = None,
 ) -> JournalEntryResponse:
     return JournalEntryResponse(
         id=entry.id,
@@ -101,6 +156,7 @@ async def parse_entry_model(
         context_url=entry.context_url,
         context_type=entry.context_type,
         context_id=entry.context_id,
+        locked_by=locked_by,
     )
 
 
@@ -115,8 +171,15 @@ async def parse_entry_model_entity(
     journal_id: UUID,
     journal_url: Optional[str] = None,
     tags: List[str] = [],
+    locked_by: Optional[str] = None,
 ) -> EntityResponse:
     address, blockchain, required_fields = parse_entry_tags_to_entity_fields(tags=tags)
+
+    secondary_fieds = {}
+    try:
+        secondary_fieds = json.loads(entry.content) if entry.content is not None else {}
+    except Exception as err:
+        secondary_fieds = {"JSONDecodeError": "unable to parse as JSON"}
 
     return EntityResponse(
         entity_id=entry.id,
@@ -125,9 +188,10 @@ async def parse_entry_model_entity(
         blockchain=blockchain,
         name=" - ".join(entry.title.split(" - ")[1:]),
         required_fields=required_fields,
-        secondary_fields=json.loads(entry.content) if entry.content is not None else {},
+        secondary_fields=secondary_fieds,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
+        locked_by=locked_by,
     )
 
 

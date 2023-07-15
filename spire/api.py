@@ -8,13 +8,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .data import PingResponse, VersionResponse
+from .github.api import app as github_api
 from .go.api import app as go_api
+from .humbug.api import app as humbug_app
 from .journal.api import app as journal_api
+from .preferences.api import app as preferences_api
 from .public.api import app_public as public_api
 from .slack.api import app as slack_api
-from .github.api import app as github_api
-from .preferences.api import app as preferences_api
-from .humbug.api import app as humbug_app
 from .utils.settings import SPIRE_RAW_ORIGINS_LST
 from .version import SPIRE_VERSION
 
@@ -49,6 +49,7 @@ async def version() -> VersionResponse:
 app.mount("/go", go_api)
 app.mount("/slack", slack_api)
 app.mount("/journals", journal_api)
+app.mount("/collections", journal_api)
 app.mount("/public", public_api)
 app.mount("/github", github_api)
 app.mount("/preferences", preferences_api)

@@ -1,12 +1,12 @@
 """
 Journal-related data structures
 """
+import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional, Set, Dict, Union
-import uuid
+from typing import Any, Dict, List, Optional, Set, Union
 
-from pydantic import BaseModel, Field, root_validator, Extra
+from pydantic import BaseModel, Extra, Field, root_validator
 
 from .models import HolderType
 
@@ -313,6 +313,31 @@ class TagUsage(BaseModel):
 
 
 # Entity representation
+class Entity(BaseModel, extra=Extra.allow):
+    address: str
+    blockchain: str
+    name: str
+
+    required_fields: List[Dict[str, Union[str, bool, int, list]]] = Field(
+        default_factory=list
+    )
+
+    extra: Dict[str, Any]
+
+    @root_validator(pre=True)
+    def build_extra(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        all_required_field_names = {
+            field.alias for field in cls.__fields__.values() if field.alias != "extra"
+        }
+
+        extra: Dict[str, Any] = {}
+        for field_name in list(values):
+            if field_name not in all_required_field_names:
+                extra[field_name] = values.pop(field_name)
+        values["extra"] = extra
+        return values
+
+
 class EntityCollectionResponse(BaseModel):
     collection_id: uuid.UUID
     bugout_user_id: str

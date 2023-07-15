@@ -56,6 +56,7 @@ setup(
         "typed-ast",
         "uvicorn>=0.17.6",
         "uvloop",
+        "web3>=5.30.0",
         "websockets",
         "yarl",
     ],
