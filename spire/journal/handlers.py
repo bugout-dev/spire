@@ -129,14 +129,7 @@ async def delete_journal_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    es_index = None
-
-    # search.delete_journal_entries(es_client, es_index=es_index, journal_id=journal_id)
+    search.delete_journal_entries(es_client, es_index=es_index, journal_id=journal_id)
 
     return await journal_representation_parsers[representation]["journal"](
         journal, {holder.holder_id for holder in journal.permissions}
@@ -198,13 +191,6 @@ async def create_journal_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    es_index = None
-
     try:
         journal_entry, entry_lock = await actions.create_journal_entry(
             db_session=db_session,
@@ -310,13 +296,6 @@ async def create_journal_entries_pack_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    es_index = None
-
     if es_index is not None:
         e_list = (
             response.entities
@@ -445,13 +424,6 @@ async def delete_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    es_index = None
-
     if es_index is not None:
         try:
             search.delete_entry(
@@ -533,13 +505,6 @@ async def search_journal_handler(
     results: List[Any] = []
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    # TODO: !!!!!!!!!
-    es_index = None
-
     if es_index is None:
         total_results, rows = search.search_database(
             db_session, journal_id, search_query, limit, offset, order=order
