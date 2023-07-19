@@ -338,6 +338,10 @@ class Entity(BaseModel, extra=Extra.allow):
         return values
 
 
+class EntityList(BaseModel):
+    entities: List[Entity] = Field(default_factory=list)
+
+
 class EntityCollectionResponse(BaseModel):
     collection_id: uuid.UUID
     bugout_user_id: str
@@ -354,6 +358,8 @@ class EntityCollectionsResponse(BaseModel):
 class EntityResponse(BaseModel):
     entity_id: uuid.UUID
     collection_id: uuid.UUID
+    collection_url: Optional[str] = None
+    content_url: Optional[str] = None
     address: Optional[str] = None
     blockchain: Optional[str] = None
     name: Optional[str] = None

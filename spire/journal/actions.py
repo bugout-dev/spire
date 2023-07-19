@@ -18,6 +18,7 @@ from sqlalchemy.dialects import postgresql
 
 
 from .data import (
+    EntityList,
     JournalScopes,
     JournalEntryScopes,
     CreateJournalRequest,
@@ -51,6 +52,7 @@ from .models import (
     HolderType,
     SpireOAuthScopes,
 )
+from .representations import journal_representation_parsers, parse_entity_to_entry
 from ..utils.confparse import scope_conf
 from ..broodusers import bugout_api
 
@@ -555,58 +557,78 @@ async def create_journal_entry(
 async def create_journal_entries_pack(
     db_session: Session,
     journal_id: UUID,
-    entries_pack_request: JournalEntryListContent,
-) -> ListJournalEntriesResponse:
+    entries_pack_request: Union[JournalEntryListContent, EntityList],
+    representation: JournalRepresentationTypes = JournalRepresentationTypes.JOURNAL,
+) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
     """
     Bulk pack of entries to database.
     """
-    entries_response = ListJournalEntriesResponse(entries=[])
+    parsed_entries = []
 
     chunk_size = 50
-    chunks = [
-        entries_pack_request.entries[i : i + chunk_size]
-        for i in range(0, len(entries_pack_request.entries), chunk_size)
-    ]
+    e_list = []
+    if representation == JournalRepresentationTypes.JOURNAL:
+        e_list = entries_pack_request.entries
+    elif representation == JournalRepresentationTypes.ENTITY:
+        e_list = entries_pack_request.entities
+    chunks = [e_list[i : i + chunk_size] for i in range(0, len(e_list), chunk_size)]
     logger.info(
         f"Entries pack split into to {len(chunks)} chunks for journal {str(journal_id)}"
     )
+
     for chunk in chunks:
         entries_pack = []
         entries_tags_pack = []
 
         for entry_request in chunk:
             entry_id = uuid4()
+
+            title: str = ""
+            tags: Optional[List[str]] = None
+            content: str = ""
+            if representation == JournalRepresentationTypes.JOURNAL:
+                title = entry_request.title
+                tags = entry_request.tags
+                content = entry_request.content
+            elif representation == JournalRepresentationTypes.ENTITY:
+                title, tags, content = parse_entity_to_entry(
+                    create_entity=entry_request,
+                )
+
             entries_pack.append(
                 JournalEntry(
                     id=entry_id,
                     journal_id=journal_id,
-                    title=entry_request.title,
-                    content=entry_request.content,
+                    title=title,
+                    content=content,
                     context_id=entry_request.context_id,
                     context_url=entry_request.context_url,
                     context_type=entry_request.context_type,
                     created_at=entry_request.created_at,
                 )
             )
-            if entry_request.tags is not None:
+            if tags is not None:
                 entries_tags_pack += [
                     JournalEntryTag(journal_entry_id=entry_id, tag=tag)
-                    for tag in entry_request.tags
+                    for tag in tags
                     if tag
                 ]
 
-            entries_response.entries.append(
-                JournalEntryResponse(
-                    id=entry_id,
-                    title=entry_request.title,
-                    content=entry_request.content,
-                    tags=entry_request.tags if entry_request.tags is not None else [],
-                    context_url=entry_request.context_url,
-                    context_type=entry_request.context_type,
-                    context_id=entry_request.context_id,
-                    created_at=entry_request.created_at,
-                )
+            obj = await journal_representation_parsers[representation]["entry"](
+                id=entry_id,
+                journal_id=journal_id,
+                title=title,
+                content=content,
+                url=None,
+                tags=tags if tags is not None else [],
+                created_at=entry_request.created_at,
+                updated_at=None,
+                context_url=entry_request.context_url,
+                context_type=entry_request.context_type,
+                context_id=entry_request.context_id,
+                locked_by=None,
             )
+            parsed_entries.append(obj)
 
         db_session.bulk_save_objects(entries_pack)
         db_session.commit()
@@ -616,9 +638,7 @@ async def create_journal_entries_pack(
         # Append created_at and updated_at from fresh rows from database
         # TODO(kompotkot): Datetime now not returned from bult_save_objects()
         for entry in [
-            e1
-            for e1 in entries_response.entries
-            if e1.id in [e2.id for e2 in entries_pack]
+            e1 for e1 in parsed_entries if e1.id in [e2.id for e2 in entries_pack]
         ]:
             entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
                 0
@@ -627,7 +647,9 @@ async def create_journal_entries_pack(
                 0
             ].updated_at
 
-    return entries_response
+    return await journal_representation_parsers[representation]["entries"](
+        parsed_entries
+    )
 
 
 async def get_journal_entries(

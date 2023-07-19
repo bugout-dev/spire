@@ -40,6 +40,8 @@ from ..utils.settings import (
 )
 from . import actions, search
 from .data import (
+    EntityList,
+    EntityCollectionResponse,
     ContextSpec,
     CreateEntriesTagsRequest,
     CreateJournalAPIRequest,
@@ -71,9 +73,7 @@ from .data import (
     JournalResponse,
     JournalScopes,
     JournalScopesAPIRequest,
-    JournalSearchResult,
     JournalSearchResultsResponse,
-    JournalsEntriesTagsResponse,
     JournalSpec,
     JournalStatisticsResponse,
     JournalStatisticsSpecs,
@@ -472,7 +472,9 @@ async def list_journals(
 
         parsed_journals = []
         for j in journals:
-            obj = await journal_representation_parsers[representation]["journal"](j)
+            obj = await journal_representation_parsers[representation]["journal"](
+                j, j.holders_ids
+            )
             parsed_journals.append(obj)
 
         result = await journal_representation_parsers[representation]["journals"](
@@ -488,12 +490,19 @@ async def list_journals(
     return result
 
 
-@app.post("/", tags=["journals"], response_model=JournalResponse)
+@app.post(
+    "/",
+    tags=["journals", "collections"],
+    response_model=Union[JournalResponse, EntityCollectionResponse],
+)
 async def create_journal(
     create_request: CreateJournalAPIRequest,
     request: Request,
     db_session: Session = Depends(db.yield_connection_from_env),
-) -> JournalResponse:
+    representation: JournalRepresentationTypes = Query(
+        JournalRepresentationTypes.JOURNAL
+    ),
+) -> Union[JournalResponse, EntityCollectionResponse]:
     """
     Creates a journal object for the authenticated user.
     """
@@ -508,18 +517,15 @@ async def create_journal(
     )
     try:
         journal = await actions.create_journal(db_session, journal_request)
+
+        result = await journal_representation_parsers[representation]["journal"](
+            journal, {holder.holder_id for holder in journal.permissions}
+        )
     except Exception as e:
         logger.error(f"Error creating journal: {str(e)}")
         raise HTTPException(status_code=500)
 
-    return JournalResponse(
-        id=journal.id,
-        bugout_user_id=journal.bugout_user_id,
-        holder_ids={holder.holder_id for holder in journal.permissions},
-        name=journal.name,
-        created_at=journal.created_at,
-        updated_at=journal.updated_at,
-    )
+    return result
 
 
 @app.get("/{journal_id}", tags=["journals"], response_model=JournalResponse)
@@ -602,13 +608,20 @@ async def update_journal(
     )
 
 
-@app.delete("/{journal_id}", tags=["journals"], response_model=JournalResponse)
+@app.delete(
+    "/{journal_id}",
+    tags=["journals", "collections"],
+    response_model=Union[JournalResponse, EntityCollectionResponse],
+)
 async def delete_journal(
     journal_id: UUID,
     request: Request,
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> JournalResponse:
+    representation: JournalRepresentationTypes = Query(
+        JournalRepresentationTypes.JOURNAL
+    ),
+) -> Union[JournalResponse, EntityCollectionResponse]:
     """
     Retrieves the journal with the given ID (assuming the journal was created by the authenticated
     user).
@@ -641,13 +654,8 @@ async def delete_journal(
 
     search.delete_journal_entries(es_client, es_index=es_index, journal_id=journal_id)
 
-    return JournalResponse(
-        id=journal.id,
-        bugout_user_id=journal.bugout_user_id,
-        holder_ids={holder.holder_id for holder in journal.permissions},
-        name=journal.name,
-        created_at=journal.created_at,
-        updated_at=journal.updated_at,
+    return await journal_representation_parsers[representation]["journal"](
+        journal, {holder.holder_id for holder in journal.permissions}
     )
 
 
@@ -836,7 +844,11 @@ async def generate_journal_stats(
     tags=["entries"],
     response_model=Union[JournalEntryResponse, EntityResponse],
 )
-@app.post("/{journal_id}/entities", tags=["entities"])
+@app.post(
+    "/{journal_id}/entities",
+    tags=["entities"],
+    response_model=Union[JournalEntryResponse, EntityResponse],
+)
 async def create_journal_entry(
     request: Request,
     journal_id: UUID = Path(...),
@@ -933,24 +945,34 @@ async def create_journal_entry(
                 f"({journal_entry.journal_id}) for user ({request.state.user_id})"
             )
 
-    url: str = str(request.url).rstrip("/")
-    journal_url = "/".join(url.split("/")[:-1])
-
     return await journal_representation_parsers[representation]["entry"](
-        journal_entry, journal_entry.journal_id, journal_url, tags, entry_lock.locked_by
+        id=journal_entry.id,
+        journal_id=journal_entry.journal_id,
+        title=journal_entry.title,
+        content=journal_entry.content,
+        url=str(request.url).rstrip("/"),
+        tags=tags,
+        created_at=journal_entry.created_at,
+        updated_at=journal_entry.updated_at,
+        context_url=journal_entry.context_url,
+        context_type=journal_entry.context_type,
+        context_id=journal_entry.context_id,
+        locked_by=entry_lock.locked_by,
     )
 
 
 @app.post(
-    "/{journal_id}/bulk", tags=["entries"], response_model=ListJournalEntriesResponse
+    "/{journal_id}/bulk",
+    tags=["entries", "entities"],
+    response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
 )
 async def create_journal_entries_pack(
     journal_id: UUID,
-    entries_request: JournalEntryListContent,
     request: Request,
+    entries_request: Union[EntityList, JournalEntryListContent] = Body(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> ListJournalEntriesResponse:
+) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
     """
     Creates a pack of journal entries.
     """
@@ -978,11 +1000,20 @@ async def create_journal_entries_pack(
         logger.error(f"Error retrieving journal: {str(e)}")
         raise HTTPException(status_code=500)
 
+    representation: JournalRepresentationTypes
+    if type(entries_request) == JournalEntryListContent:
+        representation = JournalRepresentationTypes.JOURNAL
+    elif type(entries_request) == EntityList:
+        representation = JournalRepresentationTypes.ENTITY
+    else:
+        raise HTTPException(status_code=500)
+
     try:
-        journal_entries_response = await actions.create_journal_entries_pack(
+        response = await actions.create_journal_entries_pack(
             db_session,
             journal.id,
             entries_request,
+            representation=representation,
         )
     except actions.JournalNotFound:
         logger.error(
@@ -995,11 +1026,12 @@ async def create_journal_entries_pack(
 
     es_index = journal.search_index
     if es_index is not None:
-        search.bulk_create_entries(
-            es_client, es_index, journal_id, journal_entries_response.entries
+        e_list = (
+            response.entities if JournalRepresentationTypes.ENTITY else response.entries
         )
+        search.bulk_create_entries(es_client, es_index, journal_id, e_list)
 
-    return journal_entries_response
+    return response
 
 
 @app.get(
@@ -1060,7 +1092,6 @@ async def get_entries(
         raise HTTPException(status_code=500)
 
     url: str = str(request.url).rstrip("/")
-    journal_url = "/".join(url.split("/")[:-1])
     parsed_entries = []
 
     for e in entries:
@@ -1070,10 +1101,20 @@ async def get_entries(
             e.id,
             user_group_id_list=request.state.user_group_id_list,
         )
-        tags = [tag.tag for tag in tag_objects]
 
         obj = await journal_representation_parsers[representation]["entry"](
-            e, journal_id, journal_url, tags
+            id=e.id,
+            journal_id=journal_id,
+            title=e.title,
+            content=e.content,
+            url=url,
+            tags=[tag.tag for tag in tag_objects],
+            created_at=e.created_at,
+            updated_at=e.updated_at,
+            context_url=e.context_url,
+            context_type=e.context_type,
+            context_id=e.context_id,
+            locked_by=None,
         )
         parsed_entries.append(obj)
 
@@ -1380,7 +1421,12 @@ async def delete_entry_lock(
 @app.delete(
     "/{journal_id}/entries/{entry_id}",
     tags=["entries"],
-    response_model=JournalEntryResponse,
+    response_model=Union[JournalEntryResponse, EntityResponse],
+)
+@app.delete(
+    "/{journal_id}/entities/{entry_id}",
+    tags=["entities"],
+    response_model=Union[JournalEntryResponse, EntityResponse],
 )
 async def delete_entry(
     journal_id: UUID,
@@ -1388,7 +1434,10 @@ async def delete_entry(
     request: Request,
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> JournalEntryResponse:
+    representation: JournalRepresentationTypes = Query(
+        JournalRepresentationTypes.JOURNAL
+    ),
+) -> Union[JournalEntryResponse, EntityResponse]:
     """
     Deletes a journal entry
     """
@@ -1435,17 +1484,19 @@ async def delete_entry(
                 f"({journal_entry.journal_id}) for user ({request.state.user_id})"
             )
 
-    url: str = str(request.url).rstrip("/")
-    journal_url = "/".join(url.split("/")[:-2])
-    content_url = f"{url}/content"
-    return JournalEntryResponse(
+    return await journal_representation_parsers[representation]["entry"](
         id=journal_entry.id,
-        journal_url=journal_url,
-        content_url=content_url,
+        journal_id=journal_entry.journal_id,
+        title=journal_entry.title,
+        content=journal_entry.content,
+        url=str(request.url).rstrip("/"),
+        tags=[],
         created_at=journal_entry.created_at,
         updated_at=journal_entry.updated_at,
         context_url=journal_entry.context_url,
         context_type=journal_entry.context_type,
+        context_id=journal_entry.context_id,
+        locked_by=None,
     )
 
 
