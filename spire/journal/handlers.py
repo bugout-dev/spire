@@ -16,6 +16,7 @@ from .data import (
     CreateJournalEntryRequest,
     CreateJournalRequest,
     Entity,
+    EntityCollection,
     JournalEntryContent,
     JournalEntryListContent,
     JournalEntryScopes,
@@ -68,7 +69,7 @@ async def list_journals_handler(
 async def create_journal_handler(
     db_session: Session,
     request: Request,
-    create_request: CreateJournalAPIRequest,
+    create_request: Union[CreateJournalAPIRequest, EntityCollection],
     representation: JournalRepresentationTypes,
 ):
     search_index: Optional[str] = DEFAULT_JOURNALS_ES_INDEX
@@ -128,8 +129,14 @@ async def delete_journal_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    es_index = None
 
-    search.delete_journal_entries(es_client, es_index=es_index, journal_id=journal_id)
+    # search.delete_journal_entries(es_client, es_index=es_index, journal_id=journal_id)
 
     return await journal_representation_parsers[representation]["journal"](
         journal, {holder.holder_id for holder in journal.permissions}
@@ -157,9 +164,7 @@ async def create_journal_entry_handler(
     journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
 
     tags: List[str]
-    representation: JournalRepresentationTypes
-    if type(create_request) == JournalEntryContent:
-        representation = JournalRepresentationTypes.JOURNAL
+    if representation == JournalRepresentationTypes.JOURNAL:
         creation_request = CreateJournalEntryRequest(
             journal_spec=journal_spec,
             title=create_request.title,
@@ -178,8 +183,7 @@ async def create_journal_entry_handler(
             creation_request.created_at = created_at
 
         tags = create_request.tags if create_request.tags is not None else []
-    elif type(create_request) == Entity:
-        representation = JournalRepresentationTypes.ENTITY
+    elif representation == JournalRepresentationTypes.COLLECTION:
         title, tags, content = parse_entity_to_entry(
             create_entity=create_request,
         )
@@ -194,6 +198,12 @@ async def create_journal_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    es_index = None
 
     try:
         journal_entry, entry_lock = await actions.create_journal_entry(
@@ -289,7 +299,6 @@ async def create_journal_entries_pack_handler(
             db_session,
             journal.id,
             create_request,
-            representation=representation,
         )
     except actions.JournalNotFound:
         logger.error(
@@ -301,9 +310,18 @@ async def create_journal_entries_pack_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    es_index = None
+
     if es_index is not None:
         e_list = (
-            response.entities if JournalRepresentationTypes.ENTITY else response.entries
+            response.entities
+            if JournalRepresentationTypes.COLLECTION
+            else response.entries
         )
         search.bulk_create_entries(es_client, es_index, journal_id, e_list)
 
@@ -427,6 +445,13 @@ async def delete_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    es_index = None
+
     if es_index is not None:
         try:
             search.delete_entry(
@@ -508,6 +533,13 @@ async def search_journal_handler(
     results: List[Any] = []
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    # TODO: !!!!!!!!!
+    es_index = None
+
     if es_index is None:
         total_results, rows = search.search_database(
             db_session, journal_id, search_query, limit, offset, order=order
@@ -515,7 +547,11 @@ async def search_journal_handler(
         max_score: Optional[float] = 1.0
 
         for entry in rows:
-            entry_url = f"{journal_url}/entries/{str(entry.id)}"
+            entry_url = ""
+            if representation == JournalRepresentationTypes.JOURNAL:
+                entry_url = f"{journal_url}/entries/{str(entry.id)}"
+            elif representation == JournalRepresentationTypes.COLLECTION:
+                entry_url = f"{journal_url}/entities/{str(entry.id)}"
             content_url = f"{entry_url}/content"
 
             result = await journal_representation_parsers[representation][
@@ -553,7 +589,12 @@ async def search_journal_handler(
             max_score = 0.0
 
         for hit in search_results.get("hits", []):
-            entry_url = f"{journal_url}/entries/{hit['_id']}"
+            entry_url = ""
+            if representation == JournalRepresentationTypes.JOURNAL:
+                entry_url = f"{journal_url}/entries/{hit['_id']}"
+            elif representation == JournalRepresentationTypes.COLLECTION:
+                entry_url = f"{journal_url}/entities/{hit['_id']}"
+
             content_url = f"{entry_url}/content"
             source = hit.get("_source", {})
             source_tags: Union[str, List[str]] = source.get("tag", [])
@@ -568,19 +609,19 @@ async def search_journal_handler(
             result = await journal_representation_parsers[representation][
                 "search_entry"
             ](
-                source.get("entry_id"),
-                str(journal.id),
-                entry_url,
-                content_url,
-                source.get("title", ""),
-                tags,
-                datetime.fromtimestamp(source.get("created_at")).isoformat(),
-                datetime.fromtimestamp(source.get("updated_at")).isoformat(),
-                hit.get("_score"),
-                source.get("context_type"),
-                source.get("context_id"),
-                source.get("context_url"),
-                source.get("content", "") if content is True else None,
+                entry_id=source.get("entry_id", ""),
+                journal_id=str(journal.id),
+                entry_url=entry_url,
+                content_url=content_url,
+                title=source.get("title", ""),
+                tags=tags,
+                created_at=datetime.fromtimestamp(source.get("created_at")).isoformat(),
+                updated_at=datetime.fromtimestamp(source.get("updated_at")).isoformat(),
+                score=hit.get("_score"),
+                context_type=source.get("context_type"),
+                context_id=source.get("context_id"),
+                context_url=source.get("context_url"),
+                content=source.get("content", "") if content is True else None,
             )
             results.append(result)
 

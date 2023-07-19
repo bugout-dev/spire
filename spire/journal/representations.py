@@ -13,12 +13,13 @@ from uuid import UUID
 from web3 import Web3
 
 from .data import (
+    CollectionSearchResponse,
+    CollectionSearchResult,
     EntitiesResponse,
     Entity,
     EntityCollectionResponse,
     EntityCollectionsResponse,
     EntityResponse,
-    EntitySearchResponse,
     JournalEntryResponse,
     JournalRepresentationTypes,
     JournalResponse,
@@ -27,7 +28,7 @@ from .data import (
     ListJournalEntriesResponse,
     ListJournalsResponse,
 )
-from .models import Journal, JournalEntry
+from .models import Journal
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ def parse_entity_to_entry(
     """
     Parse Entity create request structure to Bugout journal scheme.
     """
-    title = f"{create_entity.name}"
+    title = f"{create_entity.title}"
     tags: List[str] = []
     content: Dict[str, Any] = {}
 
@@ -229,13 +230,13 @@ async def parse_entry_model_collection(
         secondary_fieds = {"JSONDecodeError": "unable to parse as JSON"}
 
     return EntityResponse(
-        entity_id=id,
+        id=id,
         collection_id=journal_id,
         collection_url="/".join(url.split("/")[:-2]) if url is not None else None,
         content_url=f"{url}/content" if url is not None else None,
         address=address,
         blockchain=blockchain,
-        name=" - ".join(title.split(" - ")[1:]),
+        title=" - ".join(title.split(" - ")[1:]),
         required_fields=required_fields,
         secondary_fields=secondary_fieds,
         created_at=created_at,
@@ -253,7 +254,7 @@ async def parse_entries_model_collection(
 # Search entry parsers
 async def parse_search_entry_model(
     entry_id: str,
-    collection_id: str,
+    journal_id: str,
     entry_url: str,
     content_url: str,
     title: str,
@@ -299,7 +300,7 @@ async def parse_search_entries_model(
 
 async def parse_search_entry_model_collection(
     entry_id: str,
-    collection_id: str,
+    journal_id: str,
     entry_url: str,
     content_url: str,
     title: str,
@@ -311,19 +312,22 @@ async def parse_search_entry_model_collection(
     context_id: Optional[str] = None,
     context_url: Optional[str] = None,
     content: Optional[str] = None,
-) -> EntityResponse:
+) -> CollectionSearchResult:
     address, blockchain, required_fields = parse_entry_tags_to_entity_fields(tags=tags)
 
-    return EntityResponse(
-        entity_id=entry_id,
-        collection_id=collection_id,
+    return CollectionSearchResult(
+        id=entry_id,
+        collection_id=journal_id,
+        entity_url=entry_url,
+        content_url=content_url,
+        title=" - ".join(title.split(" - ")[1:]),
         address=address,
         blockchain=blockchain,
-        name=" - ".join(title.split(" - ")[1:]),
         required_fields=required_fields,
         secondary_fields=json.loads(content) if content is not None else {},
         created_at=created_at,
         updated_at=updated_at,
+        score=score,
     )
 
 
@@ -333,8 +337,8 @@ async def parse_search_entries_model_collection(
     max_score: float,
     next_offset: Optional[int] = None,
     results: List[EntityResponse] = [],
-) -> EntitySearchResponse:
-    return EntitySearchResponse(
+) -> CollectionSearchResponse:
+    return CollectionSearchResponse(
         total_results=total_results,
         offset=offset,
         next_offset=next_offset,

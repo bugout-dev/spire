@@ -316,7 +316,12 @@ class TagUsage(BaseModel):
 class Entity(BaseModel, extra=Extra.allow):
     address: str
     blockchain: str
-    name: str
+    title: str
+
+    context_url: Optional[str] = None
+    context_id: Optional[str] = None
+    context_type: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     required_fields: List[Dict[str, Union[str, bool, int, list]]] = Field(
         default_factory=list
@@ -344,6 +349,7 @@ class EntityList(BaseModel):
 
 class EntityCollection(BaseModel):
     name: str
+    journal_type: JournalTypes = JournalTypes.DEFAULT
 
 
 class EntityCollectionResponse(BaseModel):
@@ -360,13 +366,13 @@ class EntityCollectionsResponse(BaseModel):
 
 
 class EntityResponse(BaseModel):
-    entity_id: uuid.UUID
+    id: uuid.UUID
     collection_id: uuid.UUID
     collection_url: Optional[str] = None
     content_url: Optional[str] = None
     address: Optional[str] = None
     blockchain: Optional[str] = None
-    name: Optional[str] = None
+    title: Optional[str] = None
 
     required_fields: Optional[List[Dict[str, Any]]] = None
     secondary_fields: Optional[Dict[str, Any]] = None
@@ -380,9 +386,24 @@ class EntitiesResponse(BaseModel):
     entities: List[EntityResponse] = Field(default_factory=list)
 
 
-class EntitySearchResponse(BaseModel):
+class CollectionSearchResult(BaseModel):
+    id: str
+    collection_id: str
+    entity_url: str
+    content_url: str
+    title: str
+    address: str
+    blockchain: str
+    required_fields: List[Dict[str, Any]] = Field(default_factory=list)
+    secondary_fields: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+    updated_at: str
+    score: float
+
+
+class CollectionSearchResponse(BaseModel):
     total_results: int
     offset: int
     next_offset: Optional[int] = None
     max_score: float
-    results: List[EntityResponse] = Field(default_factory=list)
+    results: List[CollectionSearchResult] = Field(default_factory=list)

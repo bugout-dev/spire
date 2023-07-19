@@ -18,6 +18,7 @@ from ..utils.settings import (
 )
 from . import handlers, search
 from .data import (
+    CollectionSearchResponse,
     EntitiesResponse,
     Entity,
     EntityCollection,
@@ -25,7 +26,6 @@ from .data import (
     EntityCollectionsResponse,
     EntityList,
     EntityResponse,
-    EntitySearchResponse,
     JournalRepresentationTypes,
 )
 from .version import SPIRE_COLLECTIONS_VERSION
@@ -260,7 +260,7 @@ async def delete_entity(
 @app.get(
     "/{collection_id}/search",
     tags=["search"],
-    response_model=EntitySearchResponse,
+    response_model=CollectionSearchResponse,
 )
 async def search_journal(
     request: Request,
@@ -274,7 +274,7 @@ async def search_journal(
     order: search.ResultsOrder = Query(search.ResultsOrder.DESCENDING),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> EntitySearchResponse:
+) -> CollectionSearchResponse:
     """
     Executes a search query against the given collection.
     """

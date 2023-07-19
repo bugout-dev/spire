@@ -1,61 +1,60 @@
 """
 Journal-related actions in Spire
 """
-from datetime import date, timedelta, datetime
 import calendar
 import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Set, Optional, Tuple, Union
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from uuid import UUID, uuid4
 
 import boto3
-from fastapi import Request, HTTPException
-from sqlalchemy.orm import Session, Query
-from sqlalchemy import or_, func, text, and_, select
+from fastapi import HTTPException, Request
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Query, Session
 
-
+from ..broodusers import bugout_api
+from ..utils.confparse import scope_conf
+from ..utils.settings import BUGOUT_CLIENT_ID_HEADER
 from .data import (
-    EntityList,
-    JournalScopes,
-    JournalEntryScopes,
-    CreateJournalRequest,
-    JournalSpec,
-    JournalStatisticsSpecs,
-    CreateJournalEntryRequest,
-    JournalEntryListContent,
-    CreateJournalEntryTagRequest,
-    CreateEntriesTagsRequest,
-    JournalSearchResultsResponse,
-    JournalStatisticsResponse,
-    UpdateJournalSpec,
-    ListJournalEntriesResponse,
-    JournalEntryResponse,
-    JournalPermission,
     ContextSpec,
-    JournalRepresentationTypes,
-    EntityCollectionsResponse,
-    EntityCollectionResponse,
-    JournalResponse,
-    ListJournalsResponse,
-    EntityResponse,
+    CreateEntriesTagsRequest,
+    CreateJournalEntryRequest,
+    CreateJournalEntryTagRequest,
+    CreateJournalRequest,
     EntitiesResponse,
+    EntityCollectionResponse,
+    EntityCollectionsResponse,
+    EntityList,
+    EntityResponse,
+    JournalEntryListContent,
+    JournalEntryResponse,
+    JournalEntryScopes,
+    JournalPermission,
+    JournalRepresentationTypes,
+    JournalResponse,
+    JournalScopes,
+    JournalSearchResultsResponse,
+    JournalSpec,
+    JournalStatisticsResponse,
+    JournalStatisticsSpecs,
+    ListJournalEntriesResponse,
+    ListJournalsResponse,
+    UpdateJournalSpec,
 )
 from .models import (
+    HolderType,
     Journal,
     JournalEntry,
     JournalEntryLock,
     JournalEntryTag,
     JournalPermissions,
-    HolderType,
     SpireOAuthScopes,
 )
 from .representations import journal_representation_parsers, parse_entity_to_entry
-from ..utils.confparse import scope_conf
-from ..utils.settings import BUGOUT_CLIENT_ID_HEADER
-from ..broodusers import bugout_api
 
 logger = logging.getLogger(__name__)
 
@@ -603,18 +602,23 @@ async def create_journal_entries_pack(
     db_session: Session,
     journal_id: UUID,
     entries_pack_request: Union[JournalEntryListContent, EntityList],
-    representation: JournalRepresentationTypes = JournalRepresentationTypes.JOURNAL,
 ) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
     """
     Bulk pack of entries to database.
     """
+    representation: JournalRepresentationTypes
+    if type(entries_pack_request) == JournalEntryListContent:
+        representation = JournalRepresentationTypes.JOURNAL
+    elif type(entries_pack_request) == EntityList:
+        representation = JournalRepresentationTypes.COLLECTION
+
     parsed_entries = []
 
     chunk_size = 50
     e_list = []
     if representation == JournalRepresentationTypes.JOURNAL:
         e_list = entries_pack_request.entries
-    elif representation == JournalRepresentationTypes.ENTITY:
+    elif representation == JournalRepresentationTypes.COLLECTION:
         e_list = entries_pack_request.entities
     chunks = [e_list[i : i + chunk_size] for i in range(0, len(e_list), chunk_size)]
     logger.info(
@@ -635,10 +639,11 @@ async def create_journal_entries_pack(
                 title = entry_request.title
                 tags = entry_request.tags
                 content = entry_request.content
-            elif representation == JournalRepresentationTypes.ENTITY:
-                title, tags, content = parse_entity_to_entry(
+            elif representation == JournalRepresentationTypes.COLLECTION:
+                title, tags, content_raw = parse_entity_to_entry(
                     create_entity=entry_request,
                 )
+                content = json.dumps(content_raw)
 
             entries_pack.append(
                 JournalEntry(
