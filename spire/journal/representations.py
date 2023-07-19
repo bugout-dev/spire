@@ -7,7 +7,7 @@ Avoided pydantic modifications to save unique cases support, FastAPI response_mo
 import json
 import logging
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, cast
 from uuid import UUID
 
 from web3 import Web3
@@ -148,7 +148,7 @@ async def parse_journals_model(journals: List[JournalResponse]) -> ListJournalsR
     return ListJournalsResponse(journals=journals)
 
 
-async def parse_journal_model_entity(
+async def parse_journal_model_collection(
     journal: Journal, holder_ids: Set[str]
 ) -> EntityCollectionResponse:
     return EntityCollectionResponse(
@@ -161,7 +161,7 @@ async def parse_journal_model_entity(
     )
 
 
-async def parse_journals_model_entity(
+async def parse_journals_model_collection(
     journals: List[EntityCollectionResponse],
 ) -> EntityCollectionsResponse:
     return EntityCollectionsResponse(collections=journals)
@@ -206,7 +206,7 @@ async def parse_entries_model(
 
 
 @enforce_same_args
-async def parse_entry_model_entity(
+async def parse_entry_model_collection(
     id: UUID,
     journal_id: UUID,
     title: Optional[str] = None,
@@ -244,7 +244,7 @@ async def parse_entry_model_entity(
     )
 
 
-async def parse_entries_model_entity(
+async def parse_entries_model_collection(
     entries: List[EntityResponse],
 ) -> EntitiesResponse:
     return EntitiesResponse(entities=entries)
@@ -297,7 +297,7 @@ async def parse_search_entries_model(
     )
 
 
-async def parse_search_entry_model_entity(
+async def parse_search_entry_model_collection(
     entry_id: str,
     collection_id: str,
     entry_url: str,
@@ -327,7 +327,7 @@ async def parse_search_entry_model_entity(
     )
 
 
-async def parse_search_entries_model_entity(
+async def parse_search_entries_model_collection(
     total_results: int,
     offset: int,
     max_score: float,
@@ -354,12 +354,12 @@ journal_representation_parsers: Dict[
         "search_entry": parse_search_entry_model,
         "search_entries": parse_search_entries_model,
     },
-    JournalRepresentationTypes.ENTITY: {
-        "journal": parse_journal_model_entity,
-        "journals": parse_journals_model_entity,
-        "entry": parse_entry_model_entity,
-        "entries": parse_entries_model_entity,
-        "search_entry": parse_search_entry_model_entity,
-        "search_entries": parse_search_entries_model_entity,
+    JournalRepresentationTypes.COLLECTION: {
+        "journal": parse_journal_model_collection,
+        "journals": parse_journals_model_collection,
+        "entry": parse_entry_model_collection,
+        "entries": parse_entries_model_collection,
+        "search_entry": parse_search_entry_model_collection,
+        "search_entries": parse_search_entries_model_collection,
     },
 }

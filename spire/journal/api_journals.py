@@ -1,7 +1,5 @@
-import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Dict, List, Optional, Set, Tuple, Union, cast
 from uuid import UUID
 
 import boto3
@@ -24,11 +22,9 @@ from .. import db, es
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
 from ..utils.settings import (
-    BUGOUT_CLIENT_ID_HEADER,
     BUGOUT_DRONES_TOKEN,
     BUGOUT_DRONES_TOKEN_HEADER,
     BULK_CHUNKSIZE,
-    DEFAULT_JOURNALS_ES_INDEX,
     DOCS_PATHS,
     DOCS_TARGET_PATH,
     DRONES_BUCKET,
@@ -38,26 +34,17 @@ from ..utils.settings import (
     SPIRE_RAW_ORIGINS_LST,
     STATISTICS_S3_PRESIGNED_URL_EXPIRATION_TIME,
 )
-from . import actions, search
+from . import actions, handlers, search
 from .data import (
-    EntityList,
-    EntityCollectionResponse,
-    ContextSpec,
     CreateEntriesTagsRequest,
     CreateJournalAPIRequest,
-    CreateJournalEntryRequest,
     CreateJournalEntryTagRequest,
     CreateJournalEntryTagsAPIRequest,
-    CreateJournalRequest,
     DeleteJournalEntriesByTagsAPIRequest,
     DeleteJournalEntryTagAPIRequest,
     DeletingQuery,
     DronesStatisticsResponce,
-    EntitiesResponse,
-    Entity,
-    EntityCollectionsResponse,
-    EntityResponse,
-    EntitySearchResponse,
+    EntityCollectionResponse,
     EntryUpdateTagActions,
     JournalEntriesBySearchDeletionResponse,
     JournalEntriesByTagsDeletionResponse,
@@ -77,7 +64,6 @@ from .data import (
     JournalSpec,
     JournalStatisticsResponse,
     JournalStatisticsSpecs,
-    JournalTypes,
     ListJournalEntriesResponse,
     ListJournalScopeSpec,
     ListJournalsResponse,
@@ -90,8 +76,7 @@ from .data import (
     UpdateJournalSpec,
     UpdateStatsRequest,
 )
-from .models import Journal, JournalEntryLock, JournalEntryTag
-from .representations import journal_representation_parsers, parse_entity_to_entry
+from .models import JournalEntryTag
 from .version import SPIRE_JOURNALS_VERSION
 
 SUBMODULE_NAME = "journals"
@@ -128,50 +113,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(BroodAuthMiddleware, whitelist=DOCS_PATHS)
-
-
-def bugout_client_id_from_request(request: Request) -> Optional[str]:
-    """
-    Returns Bugout search client ID from request if it has been passed.
-    """
-    bugout_client_id: Optional[str] = request.headers.get(BUGOUT_CLIENT_ID_HEADER)
-    # We are deprecating the SIMIOTICS_CLIENT_ID_HEADER header in favor of BUGOUT_CLIENT_ID_HEADER, but
-    # this needs to be here for legacy support.
-    if bugout_client_id is None:
-        bugout_client_id = request.headers.get("x-simiotics-client-id")
-    return bugout_client_id
-
-
-def ensure_journal_permission(
-    db_session: Session,
-    user_id: str,
-    user_group_ids: List[str],
-    journal_id: UUID,
-    required_scopes: Set[Union[JournalScopes, JournalEntryScopes]],
-) -> Journal:
-    """
-    Checks if the given user (who is a member of the groups specified by user_group_ids) holds the
-    given scope on the journal specified by journal_id.
-
-    Returns: None if the user is a holder of that scope, and raises the appropriate HTTPException
-    otherwise.
-    """
-    try:
-        journal, acl = actions.acl_auth(db_session, user_id, user_group_ids, journal_id)
-        actions.acl_check(acl, required_scopes)
-    except actions.PermissionsNotFound:
-        logger.error(
-            f"User (id={user_id}) does not have the appropriate permissions (scopes={required_scopes}) "
-            f"for journal (id={journal_id})"
-        )
-        raise HTTPException(status_code=404)
-    except Exception:
-        logger.error(
-            f"Error checking permissions for user (id={user_id}) in journal (id={journal_id})"
-        )
-        raise HTTPException(status_code=500)
-
-    return journal
 
 
 @app.get("/version", response_model=VersionResponse)
@@ -232,7 +173,7 @@ async def get_journal_scopes_handler(
     \f
     :param journal_id: Journal ID to extract permissions from.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -291,7 +232,7 @@ async def get_journal_permissions_handler(
     :param journal_id: Journal ID to extract permissions from.
     :param holder_ids: Filter our holders (user or group) by ID.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -338,7 +279,7 @@ async def update_journal_scopes_handler(
     if JournalEntryScopes.DELETE.value in create_request.permission_list:
         ensure_permissions_set.add(JournalEntryScopes.DELETE)
 
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -406,7 +347,7 @@ async def delete_journal_scopes_handler(
                 status_code=400,
                 detail="Only group owner/admin allowed to manage group in journal",
             )
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -450,80 +391,44 @@ async def delete_journal_scopes_handler(
 
 @app.get(
     "/",
-    tags=["journals", "collections"],
-    response_model=Union[ListJournalsResponse, EntityCollectionsResponse],
+    tags=["journals"],
+    response_model=ListJournalsResponse,
 )
 async def list_journals(
     request: Request,
     db_session: Session = Depends(db.yield_connection_from_env),
-    representation: JournalRepresentationTypes = Query(
-        JournalRepresentationTypes.JOURNAL
-    ),
-) -> Union[ListJournalsResponse, EntityCollectionsResponse]:
+) -> ListJournalsResponse:
     """
     List all journals user has access to.
     """
-    try:
-        journals = await actions.find_journals(
-            db_session=db_session,
-            user_id=request.state.user_id,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-
-        parsed_journals = []
-        for j in journals:
-            obj = await journal_representation_parsers[representation]["journal"](
-                j, j.holders_ids
-            )
-            parsed_journals.append(obj)
-
-        result = await journal_representation_parsers[representation]["journals"](
-            parsed_journals
-        )
-    except actions.JournalNotFound:
-        logger.error(f"Journals not found for user={request.state.user_id}")
-        raise HTTPException(status_code=404)
-    except Exception as err:
-        logger.error(err)
-        raise HTTPException(status_code=500)
+    result = await handlers.list_journals_handler(
+        db_session=db_session,
+        request=request,
+        representation=JournalRepresentationTypes.JOURNAL,
+    )
 
     return result
 
 
 @app.post(
     "/",
-    tags=["journals", "collections"],
-    response_model=Union[JournalResponse, EntityCollectionResponse],
+    tags=["journals"],
+    response_model=JournalResponse,
 )
 async def create_journal(
-    create_request: CreateJournalAPIRequest,
     request: Request,
+    create_request: CreateJournalAPIRequest = Body(...),
     db_session: Session = Depends(db.yield_connection_from_env),
-    representation: JournalRepresentationTypes = Query(
-        JournalRepresentationTypes.JOURNAL
-    ),
-) -> Union[JournalResponse, EntityCollectionResponse]:
+) -> JournalResponse:
     """
     Creates a journal object for the authenticated user.
     """
-    search_index: Optional[str] = DEFAULT_JOURNALS_ES_INDEX
-    if create_request.journal_type == JournalTypes.HUMBUG:
-        search_index = None
-
-    journal_request = CreateJournalRequest(
-        bugout_user_id=request.state.user_id,
-        name=create_request.name,
-        search_index=search_index,
+    result = await handlers.create_journal_handler(
+        db_session=db_session,
+        request=request,
+        create_request=create_request,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
-    try:
-        journal = await actions.create_journal(db_session, journal_request)
-
-        result = await journal_representation_parsers[representation]["journal"](
-            journal, {holder.holder_id for holder in journal.permissions}
-        )
-    except Exception as e:
-        logger.error(f"Error creating journal: {str(e)}")
-        raise HTTPException(status_code=500)
 
     return result
 
@@ -540,7 +445,7 @@ async def get_journal(
 
     :param journal_id: Journal ID to extract permissions from
     """
-    journal = ensure_journal_permission(
+    journal = actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -572,7 +477,7 @@ async def update_journal(
     :param journal_id: Journal ID to extract permissions from
     :param update_request: Journal parameters
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -614,49 +519,24 @@ async def update_journal(
     response_model=Union[JournalResponse, EntityCollectionResponse],
 )
 async def delete_journal(
-    journal_id: UUID,
     request: Request,
+    journal_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-    representation: JournalRepresentationTypes = Query(
-        JournalRepresentationTypes.JOURNAL
-    ),
 ) -> Union[JournalResponse, EntityCollectionResponse]:
     """
-    Retrieves the journal with the given ID (assuming the journal was created by the authenticated
+    Soft delete the journal with the given ID (assuming the journal was created by the authenticated
     user).
     """
-    ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalScopes.DELETE},
+    result = await handlers.delete_journal_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        es_client=es_client,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
 
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    try:
-        journal = await actions.delete_journal(
-            db_session,
-            journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error deleting journal: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    es_index = journal.search_index
-
-    search.delete_journal_entries(es_client, es_index=es_index, journal_id=journal_id)
-
-    return await journal_representation_parsers[representation]["journal"](
-        journal, {holder.holder_id for holder in journal.permissions}
-    )
+    return result
 
 
 @app.post("/{journal_id}/stats", response_model=DronesStatisticsResponce)
@@ -670,7 +550,7 @@ async def update_journal_stats(
     Return journal statistics
     journal.read permission required.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -715,7 +595,7 @@ async def generate_journal_stats(
     """
     Return journal statistics
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -842,285 +722,88 @@ async def generate_journal_stats(
 @app.post(
     "/{journal_id}/entries",
     tags=["entries"],
-    response_model=Union[JournalEntryResponse, EntityResponse],
-)
-@app.post(
-    "/{journal_id}/entities",
-    tags=["entities"],
-    response_model=Union[JournalEntryResponse, EntityResponse],
+    response_model=JournalEntryResponse,
 )
 async def create_journal_entry(
     request: Request,
     journal_id: UUID = Path(...),
-    entry_request: Union[Entity, JournalEntryContent] = Body(...),
+    create_request: JournalEntryContent = Body(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> Union[JournalEntryResponse, EntityResponse]:
+) -> JournalEntryResponse:
     """
     Creates a journal entry
     """
-    journal = ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalEntryScopes.CREATE},
+    result = await handlers.create_journal_entry_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        create_request=create_request,
+        es_client=es_client,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
 
-    tags: List[str]
-    representation: JournalRepresentationTypes
-    if type(entry_request) == JournalEntryContent:
-        representation = JournalRepresentationTypes.JOURNAL
-        creation_request = CreateJournalEntryRequest(
-            journal_spec=journal_spec,
-            title=entry_request.title,
-            content=entry_request.content,
-            tags=entry_request.tags,
-            context_type=entry_request.context_type,
-            context_id=entry_request.context_id,
-            context_url=entry_request.context_url,
-        )
-
-        if entry_request.created_at is not None:
-            created_at_utc = datetime.astimezone(
-                entry_request.created_at, tz=timezone.utc
-            )
-            created_at = created_at_utc.replace(tzinfo=None)
-            creation_request.created_at = created_at
-
-        tags = entry_request.tags if entry_request.tags is not None else []
-    elif type(entry_request) == Entity:
-        representation = JournalRepresentationTypes.ENTITY
-        title, tags, content = parse_entity_to_entry(
-            create_entity=entry_request,
-        )
-        creation_request = CreateJournalEntryRequest(
-            journal_spec=journal_spec,
-            title=title,
-            content=json.dumps(content),
-            tags=tags,
-            context_type="entity",
-        )
-    else:
-        raise HTTPException(status_code=500)
-
-    es_index = journal.search_index
-
-    try:
-        journal_entry, entry_lock = await actions.create_journal_entry(
-            db_session=db_session,
-            journal=journal,
-            entry_request=creation_request,
-            locked_by=request.state.user_id,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error creating journal entry: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    if es_index is not None:
-        try:
-            search.new_entry(
-                es_client,
-                es_index=es_index,
-                journal_id=journal_entry.journal_id,
-                entry_id=journal_entry.id,
-                title=journal_entry.title,
-                content=journal_entry.content,
-                tags=tags,
-                created_at=journal_entry.created_at,
-                updated_at=journal_entry.updated_at,
-                context_type=journal_entry.context_type,
-                context_id=journal_entry.context_id,
-                context_url=journal_entry.context_url,
-            )
-        except Exception as e:
-            logger.warning(
-                f"Error indexing journal entry ({journal_entry.id}) in journal "
-                f"({journal_entry.journal_id}) for user ({request.state.user_id})"
-            )
-
-    return await journal_representation_parsers[representation]["entry"](
-        id=journal_entry.id,
-        journal_id=journal_entry.journal_id,
-        title=journal_entry.title,
-        content=journal_entry.content,
-        url=str(request.url).rstrip("/"),
-        tags=tags,
-        created_at=journal_entry.created_at,
-        updated_at=journal_entry.updated_at,
-        context_url=journal_entry.context_url,
-        context_type=journal_entry.context_type,
-        context_id=journal_entry.context_id,
-        locked_by=entry_lock.locked_by,
-    )
+    return result
 
 
 @app.post(
     "/{journal_id}/bulk",
-    tags=["entries", "entities"],
-    response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
+    tags=["entries"],
+    response_model=ListJournalEntriesResponse,
 )
 async def create_journal_entries_pack(
-    journal_id: UUID,
     request: Request,
-    entries_request: Union[EntityList, JournalEntryListContent] = Body(...),
+    journal_id: UUID = Path(...),
+    create_request: JournalEntryListContent = Body(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
+) -> ListJournalEntriesResponse:
     """
     Creates a pack of journal entries.
     """
-    ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalEntryScopes.CREATE},
+    result = await handlers.create_journal_entries_pack_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        create_request=create_request,
+        es_client=es_client,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
 
-    try:
-        journal = await actions.find_journal(
-            db_session=db_session,
-            journal_spec=journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error retrieving journal: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    representation: JournalRepresentationTypes
-    if type(entries_request) == JournalEntryListContent:
-        representation = JournalRepresentationTypes.JOURNAL
-    elif type(entries_request) == EntityList:
-        representation = JournalRepresentationTypes.ENTITY
-    else:
-        raise HTTPException(status_code=500)
-
-    try:
-        response = await actions.create_journal_entries_pack(
-            db_session,
-            journal.id,
-            entries_request,
-            representation=representation,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error creating journal entry: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    es_index = journal.search_index
-    if es_index is not None:
-        e_list = (
-            response.entities if JournalRepresentationTypes.ENTITY else response.entries
-        )
-        search.bulk_create_entries(es_client, es_index, journal_id, e_list)
-
-    return response
+    return result
 
 
 @app.get(
     "/{journal_id}/entries",
     tags=["entries"],
-    response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
-)
-@app.get(
-    "/{journal_id}/entities",
-    tags=["entities"],
-    response_model=Union[ListJournalEntriesResponse, EntitiesResponse],
+    response_model=ListJournalEntriesResponse,
 )
 async def get_entries(
-    journal_id: UUID,
     request: Request,
+    journal_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     context_type: Optional[str] = Query(None),
     context_id: Optional[str] = Query(None),
     context_url: Optional[str] = Query(None),
     limit: int = Query(10),
     offset: int = Query(0),
-    representation: JournalRepresentationTypes = Query(
-        JournalRepresentationTypes.JOURNAL
-    ),
-) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
+) -> ListJournalEntriesResponse:
     """
     List all entries in a journal.
     """
-    ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalEntryScopes.READ},
+    result = await handlers.get_entries_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        limit=limit,
+        offset=offset,
+        representation=JournalRepresentationTypes.JOURNAL,
+        context_type=context_type,
+        context_id=context_id,
+        context_url=context_url,
     )
 
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    context_spec = ContextSpec(
-        context_type=context_type, context_id=context_id, context_url=context_url
-    )
-    try:
-        entries = await actions.get_journal_entries(
-            db_session,
-            journal_spec,
-            None,
-            user_group_id_list=request.state.user_group_id_list,
-            context_spec=context_spec,
-            limit=limit,
-            offset=offset,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error listing journal entries: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    url: str = str(request.url).rstrip("/")
-    parsed_entries = []
-
-    for e in entries:
-        tag_objects = await actions.get_journal_entry_tags(
-            db_session,
-            journal_spec,
-            e.id,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-
-        obj = await journal_representation_parsers[representation]["entry"](
-            id=e.id,
-            journal_id=journal_id,
-            title=e.title,
-            content=e.content,
-            url=url,
-            tags=[tag.tag for tag in tag_objects],
-            created_at=e.created_at,
-            updated_at=e.updated_at,
-            context_url=e.context_url,
-            context_type=e.context_type,
-            context_id=e.context_id,
-            locked_by=None,
-        )
-        parsed_entries.append(obj)
-
-    return await journal_representation_parsers[representation]["entries"](
-        parsed_entries
-    )
+    return result
 
 
 @app.get(
@@ -1137,7 +820,7 @@ async def get_entry(
     """
     Gets a single journal entry
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1193,7 +876,7 @@ async def get_entry_content(
     """
     Retrieves the text content of a journal entry
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1256,7 +939,7 @@ async def update_entry_content(
     Modifies the content of a journal entry through a simple override.
     If tags in not empty, update them - delete old and insert new.
     """
-    journal = ensure_journal_permission(
+    journal = actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1382,7 +1065,7 @@ async def delete_entry_lock(
     Releases journal entry lock.
     Entry may be unlocked by other user.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1421,83 +1104,28 @@ async def delete_entry_lock(
 @app.delete(
     "/{journal_id}/entries/{entry_id}",
     tags=["entries"],
-    response_model=Union[JournalEntryResponse, EntityResponse],
-)
-@app.delete(
-    "/{journal_id}/entities/{entry_id}",
-    tags=["entities"],
-    response_model=Union[JournalEntryResponse, EntityResponse],
+    response_model=JournalEntryResponse,
 )
 async def delete_entry(
-    journal_id: UUID,
-    entry_id: UUID,
     request: Request,
+    journal_id: UUID = Path(...),
+    entry_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-    representation: JournalRepresentationTypes = Query(
-        JournalRepresentationTypes.JOURNAL
-    ),
-) -> Union[JournalEntryResponse, EntityResponse]:
+) -> JournalEntryResponse:
     """
-    Deletes a journal entry
+    Deletes journal entry.
     """
-    journal = ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalEntryScopes.DELETE},
+    result = await handlers.delete_entry_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        entry_id=entry_id,
+        es_client=es_client,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
 
-    try:
-        journal_entry = await actions.delete_journal_entry(
-            db_session,
-            journal,
-            entry_id,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404, detail="Journal not found")
-    except actions.EntryNotFound:
-        logger.error(
-            f"Entry not found with ID={entry_id} in journal with ID={journal_id}"
-        )
-        raise HTTPException(status_code=404, detail="Entry not found")
-    except Exception as e:
-        logger.error(f"Error listing journal entries: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    es_index = journal.search_index
-    if es_index is not None:
-        try:
-            search.delete_entry(
-                es_client,
-                es_index=es_index,
-                journal_id=journal_entry.journal_id,
-                entry_id=journal_entry.id,
-            )
-        except Exception as e:
-            logger.warning(
-                f"Error deindexing entry ({journal_entry.id}) from index for journal "
-                f"({journal_entry.journal_id}) for user ({request.state.user_id})"
-            )
-
-    return await journal_representation_parsers[representation]["entry"](
-        id=journal_entry.id,
-        journal_id=journal_entry.journal_id,
-        title=journal_entry.title,
-        content=journal_entry.content,
-        url=str(request.url).rstrip("/"),
-        tags=[],
-        created_at=journal_entry.created_at,
-        updated_at=journal_entry.updated_at,
-        context_url=journal_entry.context_url,
-        context_type=journal_entry.context_type,
-        context_id=journal_entry.context_id,
-        locked_by=None,
-    )
+    return result
 
 
 @app.delete(
@@ -1513,7 +1141,7 @@ async def delete_entries(
     """
     Deletes a journal entries
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1590,7 +1218,7 @@ async def delete_entries_by_search(
     """
     Deletes a journal entries
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1682,7 +1310,7 @@ async def delete_entries_by_tags(
     """
     Deletes a journal entries by tags list using AND condition
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1754,7 +1382,7 @@ async def most_used_tags(
     Get all tags for a journal entry.
     """
 
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1795,7 +1423,7 @@ async def create_tags(
     """
     Create tags for a journal entry.
     """
-    journal = ensure_journal_permission(
+    journal = actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1894,7 +1522,7 @@ async def get_tags(
     """
     Get all tags for a journal entry.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -1943,7 +1571,7 @@ async def update_tags(
     """
     Update tags for a journal entry tags.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -2039,7 +1667,7 @@ async def create_entries_tags(
     Create tags for multiple journal entries.
     """
 
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -2123,7 +1751,7 @@ async def delete_entries_tags(
     Delete tags for multiple journal entries.
     """
 
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -2206,7 +1834,7 @@ async def delete_tag(
 
     journal.read permission required.
     """
-    ensure_journal_permission(
+    actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
         request.state.user_group_id_list,
@@ -2301,157 +1929,37 @@ async def delete_tag(
 @app.get(
     "/{journal_id}/search",
     tags=["search"],
-    response_model=Union[JournalSearchResultsResponse, EntitySearchResponse],
+    response_model=JournalSearchResultsResponse,
 )
 async def search_journal(
-    journal_id: UUID,
     request: Request,
     background_tasks: BackgroundTasks,
+    journal_id: UUID = Path(...),
     q: str = Query(""),
     filters: Optional[List[str]] = Query(None),
     limit: int = Query(10),
     offset: int = Query(0),
-    content: Optional[bool] = Query(True),
+    content: bool = Query(True),
     order: search.ResultsOrder = Query(search.ResultsOrder.DESCENDING),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-    representation: JournalRepresentationTypes = Query(
-        JournalRepresentationTypes.JOURNAL
-    ),
-) -> Union[JournalSearchResultsResponse, EntitySearchResponse]:
+) -> JournalSearchResultsResponse:
     """
     Executes a search query against the given journal.
     """
-    ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalEntryScopes.READ},
-    )
-
-    journal_spec = JournalSpec(id=journal_id, bugout_user_id=request.state.user_id)
-    try:
-        journal = await actions.find_journal(
-            db_session=db_session,
-            journal_spec=journal_spec,
-            user_group_id_list=request.state.user_group_id_list,
-        )
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404)
-    except Exception as e:
-        logger.error(f"Error retrieving journal: {str(e)}")
-        raise HTTPException(status_code=500)
-
-    if filters is None:
-        filters = []
-    search_query = search.normalized_search_query(q, filters, strict_filter_mode=False)
-
-    url: str = str(request.url).rstrip("/")
-    journal_url = "/".join(url.split("/")[:-1])
-
-    results: List[Any] = []
-
-    es_index = journal.search_index
-    if es_index is None:
-        total_results, rows = search.search_database(
-            db_session, journal_id, search_query, limit, offset, order=order
-        )
-        max_score: Optional[float] = 1.0
-
-        for entry in rows:
-            entry_url = f"{journal_url}/entries/{str(entry.id)}"
-            content_url = f"{entry_url}/content"
-
-            result = await journal_representation_parsers[representation][
-                "search_entry"
-            ](
-                str(entry.id),
-                str(journal.id),
-                entry_url,
-                content_url,
-                entry.title,
-                entry.tags,
-                str(entry.created_at),
-                str(entry.updated_at),
-                1.0,
-                entry.context_type,
-                entry.context_id,
-                entry.context_url,
-                entry.content,
-            )
-            results.append(result)
-    else:
-        search_results = search.search(
-            es_client,
-            es_index=es_index,
-            journal_id=journal_id,
-            search_query=search_query,
-            size=limit,
-            start=offset,
-            order=order,
-        )
-
-        total_results = search_results.get("total", {}).get("value", 0)
-        max_score = search_results.get("max_score")
-        if max_score is None:
-            max_score = 0.0
-
-        for hit in search_results.get("hits", []):
-            entry_url = f"{journal_url}/entries/{hit['_id']}"
-            content_url = f"{entry_url}/content"
-            source = hit.get("_source", {})
-            source_tags: Union[str, List[str]] = source.get("tag", [])
-            tags = []
-            if source_tags == str(source_tags):
-                source_tags = cast(str, source_tags)
-                tags = [source_tags]
-            else:
-                source_tags = cast(List[str], source_tags)
-                tags = source_tags
-
-            result = await journal_representation_parsers[representation][
-                "search_entry"
-            ](
-                source.get("entry_id"),
-                str(journal.id),
-                entry_url,
-                content_url,
-                source.get("title", ""),
-                tags,
-                datetime.fromtimestamp(source.get("created_at")).isoformat(),
-                datetime.fromtimestamp(source.get("updated_at")).isoformat(),
-                hit.get("_score"),
-                source.get("context_type"),
-                source.get("context_id"),
-                source.get("context_url"),
-                source.get("content", "") if content is True else None,
-            )
-            results.append(result)
-
-    next_offset: Optional[int] = None
-    if offset + limit < total_results:
-        next_offset = offset + limit
-
-    response = await journal_representation_parsers[representation]["search_entries"](
-        total_results, offset, max_score, next_offset, results
-    )
-
-    bugout_client_id = bugout_client_id_from_request(request)
-    background_tasks.add_task(
-        actions.store_search_results,
-        search_url=url,
+    result = await handlers.search_journal_handler(
+        db_session=db_session,
+        request=request,
         journal_id=journal_id,
-        bugout_user_id=request.state.user_id,
-        bugout_client_id=bugout_client_id,
+        es_client=es_client,
+        background_tasks=background_tasks,
         q=q,
-        filters=filters,
         limit=limit,
         offset=offset,
-        response=response,
+        content=content,
+        order=order,
+        representation=JournalRepresentationTypes.JOURNAL,
+        filters=filters,
     )
 
-    return response
+    return result

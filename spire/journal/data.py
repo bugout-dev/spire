@@ -55,7 +55,7 @@ class RuleActions(Enum):
 
 
 class JournalRepresentationTypes(Enum):
-    ENTITY = "entity"
+    COLLECTION = "collection"
     JOURNAL = "journal"
 
 
@@ -340,6 +340,10 @@ class Entity(BaseModel, extra=Extra.allow):
 
 class EntityList(BaseModel):
     entities: List[Entity] = Field(default_factory=list)
+
+
+class EntityCollection(BaseModel):
+    name: str
 
 
 class EntityCollectionResponse(BaseModel):

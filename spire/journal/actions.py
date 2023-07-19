@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Set, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 import boto3
-
+from fastapi import Request, HTTPException
 from sqlalchemy.orm import Session, Query
 from sqlalchemy import or_, func, text, and_, select
 from sqlalchemy.dialects import postgresql
@@ -54,6 +54,7 @@ from .models import (
 )
 from .representations import journal_representation_parsers, parse_entity_to_entry
 from ..utils.confparse import scope_conf
+from ..utils.settings import BUGOUT_CLIENT_ID_HEADER
 from ..broodusers import bugout_api
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,18 @@ class CommitFailed(Exception):
     """
     Raised when commit failed.
     """
+
+
+def bugout_client_id_from_request(request: Request) -> Optional[str]:
+    """
+    Returns Bugout search client ID from request if it has been passed.
+    """
+    bugout_client_id: Optional[str] = request.headers.get(BUGOUT_CLIENT_ID_HEADER)
+    # We are deprecating the SIMIOTICS_CLIENT_ID_HEADER header in favor of BUGOUT_CLIENT_ID_HEADER, but
+    # this needs to be here for legacy support.
+    if bugout_client_id is None:
+        bugout_client_id = request.headers.get("x-simiotics-client-id")
+    return bugout_client_id
 
 
 def acl_auth(
@@ -199,6 +212,38 @@ def acl_check(
     required_scopes_values = {scope.value for scope in required_scopes}
     if not required_scopes_values.issubset(permissions):
         raise PermissionsNotFound("No permissions for requested information")
+
+
+def ensure_journal_permission(
+    db_session: Session,
+    user_id: str,
+    user_group_ids: List[str],
+    journal_id: UUID,
+    required_scopes: Set[Union[JournalScopes, JournalEntryScopes]],
+) -> Journal:
+    """
+    Checks if the given user (who is a member of the groups specified by user_group_ids) holds the
+    given scope on the journal specified by journal_id.
+
+    Returns: None if the user is a holder of that scope, and raises the appropriate HTTPException
+    otherwise.
+    """
+    try:
+        journal, acl = acl_auth(db_session, user_id, user_group_ids, journal_id)
+        acl_check(acl, required_scopes)
+    except PermissionsNotFound:
+        logger.error(
+            f"User (id={user_id}) does not have the appropriate permissions (scopes={required_scopes}) "
+            f"for journal (id={journal_id})"
+        )
+        raise HTTPException(status_code=404)
+    except Exception:
+        logger.error(
+            f"Error checking permissions for user (id={user_id}) in journal (id={journal_id})"
+        )
+        raise HTTPException(status_code=500)
+
+    return journal
 
 
 async def find_journals(
