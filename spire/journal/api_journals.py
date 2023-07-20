@@ -278,10 +278,10 @@ async def add_journal_scopes(
 @app.delete(
     "/{journal_id}/scopes", tags=["permissions"], response_model=ListJournalScopeSpec
 )
-async def delete_journal_scopes_handler(
-    create_request: UpdateJournalScopesAPIRequest,
-    journal_id: UUID,
+async def delete_journal_scopes(
     request: Request,
+    delete_request: UpdateJournalScopesAPIRequest = Body(...),
+    journal_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> ListJournalScopeSpec:
     """
@@ -295,52 +295,15 @@ async def delete_journal_scopes_handler(
     :param journal_id: Journal ID to extract permissions from.
     :param create_request: Journal permissions parameters.
     """
-    if create_request.holder_type == "group":
-        if create_request.holder_id not in request.state.user_group_id_list_owner:
-            raise HTTPException(
-                status_code=400,
-                detail="Only group owner/admin allowed to manage group in journal",
-            )
-    actions.ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        {JournalScopes.UPDATE},
+    result = await handlers.delete_journal_scopes_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        delete_request=delete_request,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
-    user_token = request.state.token
-    try:
-        added_permissions = await actions.delete_journal_scopes(
-            user_token,
-            db_session,
-            create_request.holder_type,
-            create_request.holder_id,
-            create_request.permissions,
-            journal_id,
-        )
-        journals_scopes = [
-            JournalScopeSpec(
-                journal_id=journal_id,
-                holder_type=create_request.holder_type,
-                holder_id=create_request.holder_id,
-                permission=permission,
-            )
-            for permission in added_permissions
-        ]
 
-        return ListJournalScopeSpec(scopes=journals_scopes)
-
-    except actions.PermissionsNotFound:
-        logger.error(f"No permissions for journal_id={journal_id}")
-        raise HTTPException(status_code=404)
-    except actions.PermissionAlreadyExists:
-        logger.error(f"Provided permission already exists for journal_id={journal_id}")
-        raise HTTPException(status_code=409)
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404, detail="Journal not found")
+    return result
 
 
 @app.get(

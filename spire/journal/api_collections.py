@@ -380,6 +380,39 @@ async def add_journal_scopes(
     return result
 
 
+@app.delete(
+    "/{collection_id}/scopes",
+    tags=["permissions"],
+    response_model=ListCollectionScopeSpec,
+)
+async def delete_journal_scopes(
+    request: Request,
+    delete_request: UpdateJournalScopesAPIRequest = Body(...),
+    collection_id: UUID = Path(...),
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> ListCollectionScopeSpec:
+    """
+    Delete collection permission if user has access to it.
+    journal.update permission required.
+
+    - **holder_type**: User or group
+    - **holder_id**: User or group ID
+    - **permissions**: List of permissions to delete
+    \f
+    :param collection_id: Collection ID to extract permissions from.
+    :param create_request: Collection permissions parameters.
+    """
+    result = await handlers.delete_journal_scopes_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=collection_id,
+        delete_request=delete_request,
+        representation=JournalRepresentationTypes.COLLECTION,
+    )
+
+    return result
+
+
 @app.get(
     "/{collection_id}/search",
     tags=["search"],

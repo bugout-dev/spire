@@ -672,6 +672,7 @@ async def delete_entry_handler(
 # get_journal_permissions_handler operates for api endpoints:
 # - get_journal_permissions
 # - get_collection_permissions
+# TODO(kompotkot): Modify permission naming for collection type
 async def get_journal_permissions_handler(
     db_session: Session,
     request: Request,
@@ -701,6 +702,7 @@ async def get_journal_permissions_handler(
 # add_journal_scopes_handler operates for api endpoints:
 # - add_journal_scopes
 # - add_collection_scopes
+# TODO(kompotkot): Modify permission naming for collection type
 async def add_journal_scopes_handler(
     db_session: Session,
     request: Request,
@@ -744,6 +746,66 @@ async def add_journal_scopes_handler(
             for permission in added_permissions
         ]
 
+    except actions.PermissionsNotFound:
+        logger.error(f"No permissions for journal_id={journal_id}")
+        raise HTTPException(status_code=404)
+    except actions.PermissionAlreadyExists:
+        logger.error(f"Provided permission already exists for journal_id={journal_id}")
+        raise HTTPException(status_code=409)
+    except actions.JournalNotFound:
+        logger.error(
+            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
+        )
+        raise HTTPException(status_code=404, detail="Journal not found")
+
+    return await journal_representation_parsers[representation]["scope_specs"](
+        scopes=journals_scopes
+    )
+
+
+# delete_journal_scopes_handler operates for api endpoints:
+# - delete_journal_scopes
+# - delete_collection_scopes
+# TODO(kompotkot): Modify permission naming for collection type
+async def delete_journal_scopes_handler(
+    db_session: Session,
+    request: Request,
+    journal_id: UUID,
+    delete_request: UpdateJournalScopesAPIRequest,
+    representation: JournalRepresentationTypes,
+):
+    if delete_request.holder_type == "group":
+        if delete_request.holder_id not in request.state.user_group_id_list_owner:
+            raise HTTPException(
+                status_code=400,
+                detail="Only group owner/admin allowed to manage group in journal",
+            )
+    actions.ensure_journal_permission(
+        db_session,
+        request.state.user_id,
+        request.state.user_group_id_list,
+        journal_id,
+        {JournalScopes.UPDATE},
+    )
+    user_token = request.state.token
+    try:
+        added_permissions = await actions.delete_journal_scopes(
+            user_token,
+            db_session,
+            delete_request.holder_type,
+            delete_request.holder_id,
+            delete_request.permissions,
+            journal_id,
+        )
+        journals_scopes = [
+            await journal_representation_parsers[representation]["scope_spec"](
+                journal_id=journal_id,
+                holder_type=delete_request.holder_type,
+                holder_id=delete_request.holder_id,
+                permission=permission,
+            )
+            for permission in added_permissions
+        ]
     except actions.PermissionsNotFound:
         logger.error(f"No permissions for journal_id={journal_id}")
         raise HTTPException(status_code=404)
