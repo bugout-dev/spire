@@ -200,7 +200,7 @@ def process_group_in_journal_holders(
     data = {
         "holder_type": "group",
         "holder_id": str(group_id),
-        "permission_list": [
+        "permissions": [
             "journals.read",
             "journals.update",
             "journals.entries.read",

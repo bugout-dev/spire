@@ -29,6 +29,8 @@ from .data import (
     EntityResponse,
     EntryUpdateTagActions,
     JournalRepresentationTypes,
+    ListCollectionScopeSpec,
+    UpdateJournalScopesAPIRequest,
 )
 from .version import SPIRE_COLLECTIONS_VERSION
 
@@ -319,7 +321,7 @@ async def delete_entity(
     tags=["permissions"],
     response_model=CollectionPermissionsResponse,
 )
-async def get_journal_permissions(
+async def get_collection_permissions(
     request: Request,
     collection_id: UUID = Path(...),
     holder_ids: Optional[str] = Query(None),
@@ -343,12 +345,47 @@ async def get_journal_permissions(
     return result
 
 
+@app.post(
+    "/{collection_id}/scopes",
+    tags=["permissions"],
+    response_model=ListCollectionScopeSpec,
+)
+async def add_journal_scopes(
+    request: Request,
+    create_request: UpdateJournalScopesAPIRequest = Body(...),
+    collection_id: UUID = Path(...),
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> ListCollectionScopeSpec:
+    """
+    Add collection permission if user has access to.
+
+    Only group type allowed for updating scopes.
+    Only groups available to user can be managed.
+
+    - **holder_type**: User or group
+    - **holder_id**: User or group ID
+    - **permissions**: List of permissions to update
+    \f
+    :param collection_id: Collection ID to extract permissions from.
+    :param create_request: Collection permissions parameters.
+    """
+    result = await handlers.add_journal_scopes_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=collection_id,
+        create_request=create_request,
+        representation=JournalRepresentationTypes.COLLECTION,
+    )
+
+    return result
+
+
 @app.get(
     "/{collection_id}/search",
     tags=["search"],
     response_model=CollectionSearchResponse,
 )
-async def search_journal(
+async def search_collection(
     request: Request,
     background_tasks: BackgroundTasks,
     collection_id: UUID = Path(...),

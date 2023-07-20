@@ -14,6 +14,7 @@ from web3 import Web3
 
 from .data import (
     CollectionPermissionsResponse,
+    CollectionScopeSpec,
     CollectionSearchResponse,
     CollectionSearchResult,
     EntitiesResponse,
@@ -26,12 +27,15 @@ from .data import (
     JournalPermissionsResponse,
     JournalRepresentationTypes,
     JournalResponse,
+    JournalScopeSpec,
     JournalSearchResult,
     JournalSearchResultsResponse,
+    ListCollectionScopeSpec,
     ListJournalEntriesResponse,
+    ListJournalScopeSpec,
     ListJournalsResponse,
 )
-from .models import Journal
+from .models import HolderType, Journal
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +273,38 @@ async def parse_permissions_model_collection(
     )
 
 
+async def parse_scope_spec_model(
+    journal_id: UUID, holder_type: HolderType, holder_id: str, permission: str
+) -> JournalScopeSpec:
+    return JournalScopeSpec(
+        journal_id=journal_id,
+        holder_type=holder_type,
+        holder_id=holder_id,
+        permission=permission,
+    )
+
+
+async def parse_scope_specs_model(scopes: JournalScopeSpec) -> JournalScopeSpec:
+    return ListJournalScopeSpec(scopes=scopes)
+
+
+async def parse_scope_spec_model_collection(
+    journal_id: UUID, holder_type: HolderType, holder_id: str, permission: str
+) -> JournalScopeSpec:
+    return CollectionScopeSpec(
+        collection_id=journal_id,
+        holder_type=holder_type,
+        holder_id=holder_id,
+        permission=permission,
+    )
+
+
+async def parse_scope_specs_model_collection(
+    scopes: CollectionScopeSpec,
+) -> ListCollectionScopeSpec:
+    return ListCollectionScopeSpec(scopes=scopes)
+
+
 # Search entry parsers
 async def parse_search_entry_model(
     entry_id: str,
@@ -374,6 +410,8 @@ journal_representation_parsers: Dict[
         "entry": parse_entry_model,
         "entries": parse_entries_model,
         "permissions": parse_permissions_model,
+        "scope_spec": parse_scope_spec_model,
+        "scope_specs": parse_scope_specs_model,
         "search_entry": parse_search_entry_model,
         "search_entries": parse_search_entries_model,
     },
@@ -383,6 +421,8 @@ journal_representation_parsers: Dict[
         "entry": parse_entry_model_collection,
         "entries": parse_entries_model_collection,
         "permissions": parse_permissions_model_collection,
+        "scope_spec": parse_scope_spec_model_collection,
+        "scope_specs": parse_scope_specs_model_collection,
         "search_entry": parse_search_entry_model_collection,
         "search_entries": parse_search_entries_model_collection,
     },

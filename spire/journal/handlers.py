@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, List, Optional, Union, cast
+from typing import Any, List, Optional, Set, Union, cast
 from uuid import UUID
 
 from elasticsearch import Elasticsearch
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..utils.settings import DEFAULT_JOURNALS_ES_INDEX
 from . import actions, search
 from .data import (
+    CollectionScopeSpec,
     ContextSpec,
     CreateJournalAPIRequest,
     CreateJournalEntryRequest,
@@ -24,8 +25,10 @@ from .data import (
     JournalEntryScopes,
     JournalRepresentationTypes,
     JournalScopes,
+    JournalScopeSpec,
     JournalSpec,
     JournalTypes,
+    UpdateJournalScopesAPIRequest,
 )
 from .models import JournalEntryTag
 from .representations import journal_representation_parsers, parse_entity_to_entry
@@ -692,6 +695,69 @@ async def get_journal_permissions_handler(
 
     return await journal_representation_parsers[representation]["permissions"](
         journal_id=journal_id, permissions=permissions
+    )
+
+
+# add_journal_scopes_handler operates for api endpoints:
+# - add_journal_scopes
+# - add_collection_scopes
+async def add_journal_scopes_handler(
+    db_session: Session,
+    request: Request,
+    journal_id: UUID,
+    create_request: UpdateJournalScopesAPIRequest,
+    representation: JournalRepresentationTypes,
+):
+    ensure_permissions_set: Set[Union[JournalScopes, JournalEntryScopes]] = {
+        JournalScopes.UPDATE
+    }
+    if JournalScopes.DELETE.value in create_request.permissions:
+        ensure_permissions_set.add(JournalScopes.DELETE)
+    if JournalEntryScopes.DELETE.value in create_request.permissions:
+        ensure_permissions_set.add(JournalEntryScopes.DELETE)
+
+    actions.ensure_journal_permission(
+        db_session,
+        request.state.user_id,
+        request.state.user_group_id_list,
+        journal_id,
+        ensure_permissions_set,
+    )
+    user_token = request.state.token
+    try:
+        added_permissions = await actions.update_journal_scopes(
+            user_token,
+            db_session,
+            create_request.holder_type,
+            create_request.holder_id,
+            create_request.permissions,
+            journal_id,
+        )
+
+        journals_scopes = [
+            await journal_representation_parsers[representation]["scope_spec"](
+                journal_id=journal_id,
+                holder_type=create_request.holder_type,
+                holder_id=create_request.holder_id,
+                permission=permission,
+            )
+            for permission in added_permissions
+        ]
+
+    except actions.PermissionsNotFound:
+        logger.error(f"No permissions for journal_id={journal_id}")
+        raise HTTPException(status_code=404)
+    except actions.PermissionAlreadyExists:
+        logger.error(f"Provided permission already exists for journal_id={journal_id}")
+        raise HTTPException(status_code=409)
+    except actions.JournalNotFound:
+        logger.error(
+            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
+        )
+        raise HTTPException(status_code=404, detail="Journal not found")
+
+    return await journal_representation_parsers[representation]["scope_specs"](
+        scopes=journals_scopes
     )
 
 

@@ -122,7 +122,7 @@ def generate_humbug_dependencies(
             journal_id=journal.id,
             holder_type="user",
             holder_id=bugout_user.id,
-            permission_list=public_user_permission_at_journal,
+            permissions=public_user_permission_at_journal,
             timeout=BUGOUT_TIMEOUT_SECONDS,
         )
     except Exception as e:
@@ -161,7 +161,7 @@ def generate_humbug_dependencies(
             journal_id=journal.id,
             holder_type="group",
             holder_id=group_id,
-            permission_list=[
+            permissions=[
                 "journals.read",
                 "journals.update",
                 "journals.entries.create",
@@ -202,7 +202,7 @@ async def remove_humbug_dependencies(
             journal_id=humbug_event.journal_id,
             holder_type="user",
             holder_id=bugout_user.user_id,
-            permission_list=public_user_permission_at_journal,
+            permissions=public_user_permission_at_journal,
             timeout=BUGOUT_TIMEOUT_SECONDS,
         )
         bugout_api.delete_user(

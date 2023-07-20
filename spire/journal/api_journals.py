@@ -55,11 +55,11 @@ from .data import (
     JournalEntryScopes,
     JournalEntryTagsResponse,
     JournalPermissionsResponse,
-    JournalPermissionsSpec,
     JournalRepresentationTypes,
     JournalResponse,
     JournalScopes,
     JournalScopesAPIRequest,
+    JournalScopeSpec,
     JournalSearchResultsResponse,
     JournalSpec,
     JournalStatisticsResponse,
@@ -189,7 +189,7 @@ async def get_journal_scopes_handler(
         )
 
         journals_scopes = [
-            JournalPermissionsSpec(
+            JournalScopeSpec(
                 holder_type=journal_p.holder_type,
                 journal_id=journal_p.journal_id,
                 holder_id=journal_p.holder_id,
@@ -245,10 +245,10 @@ async def get_journal_permissions(
 @app.post(
     "/{journal_id}/scopes", tags=["permissions"], response_model=ListJournalScopeSpec
 )
-async def update_journal_scopes_handler(
-    create_request: UpdateJournalScopesAPIRequest,
-    journal_id: UUID,
+async def add_journal_scopes(
     request: Request,
+    create_request: UpdateJournalScopesAPIRequest = Body(...),
+    journal_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
 ) -> ListJournalScopeSpec:
     """
@@ -259,59 +259,20 @@ async def update_journal_scopes_handler(
 
     - **holder_type**: User or group
     - **holder_id**: User or group ID
-    - **permission_list**: List of permissions to update
+    - **permissions**: List of permissions to update
     \f
     :param journal_id: Journal ID to extract permissions from.
     :param create_request: Journal permissions parameters.
     """
-    ensure_permissions_set: Set[Union[JournalScopes, JournalEntryScopes]] = {
-        JournalScopes.UPDATE
-    }
-    if JournalScopes.DELETE.value in create_request.permission_list:
-        ensure_permissions_set.add(JournalScopes.DELETE)
-    if JournalEntryScopes.DELETE.value in create_request.permission_list:
-        ensure_permissions_set.add(JournalEntryScopes.DELETE)
-
-    actions.ensure_journal_permission(
-        db_session,
-        request.state.user_id,
-        request.state.user_group_id_list,
-        journal_id,
-        ensure_permissions_set,
+    result = await handlers.update_journal_scopes_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=journal_id,
+        create_request=create_request,
+        representation=JournalRepresentationTypes.JOURNAL,
     )
-    user_token = request.state.token
-    try:
-        added_permissions = await actions.update_journal_scopes(
-            user_token,
-            db_session,
-            create_request.holder_type,
-            create_request.holder_id,
-            create_request.permission_list,
-            journal_id,
-        )
-        journals_scopes = [
-            JournalPermissionsSpec(
-                journal_id=journal_id,
-                holder_type=create_request.holder_type,
-                holder_id=create_request.holder_id,
-                permission=permission,
-            )
-            for permission in added_permissions
-        ]
 
-        return ListJournalScopeSpec(scopes=journals_scopes)
-
-    except actions.PermissionsNotFound:
-        logger.error(f"No permissions for journal_id={journal_id}")
-        raise HTTPException(status_code=404)
-    except actions.PermissionAlreadyExists:
-        logger.error(f"Provided permission already exists for journal_id={journal_id}")
-        raise HTTPException(status_code=409)
-    except actions.JournalNotFound:
-        logger.error(
-            f"Journal not found with ID={journal_id} for user={request.state.user_id}"
-        )
-        raise HTTPException(status_code=404, detail="Journal not found")
+    return result
 
 
 @app.delete(
@@ -329,7 +290,7 @@ async def delete_journal_scopes_handler(
 
     - **holder_type**: User or group
     - **holder_id**: User or group ID
-    - **permission_list**: List of permissions to delete
+    - **permissions**: List of permissions to delete
     \f
     :param journal_id: Journal ID to extract permissions from.
     :param create_request: Journal permissions parameters.
@@ -354,11 +315,11 @@ async def delete_journal_scopes_handler(
             db_session,
             create_request.holder_type,
             create_request.holder_id,
-            create_request.permission_list,
+            create_request.permissions,
             journal_id,
         )
         journals_scopes = [
-            JournalPermissionsSpec(
+            JournalScopeSpec(
                 journal_id=journal_id,
                 holder_type=create_request.holder_type,
                 holder_id=create_request.holder_id,

@@ -241,7 +241,7 @@ class JournalSearchResultsResponse(BaseModel):
     results: List[JournalSearchResult] = Field(default_factory=list)
 
 
-class JournalPermissionsSpec(BaseModel):
+class JournalScopeSpec(BaseModel):
     journal_id: uuid.UUID
     holder_type: HolderType
     holder_id: str
@@ -249,7 +249,7 @@ class JournalPermissionsSpec(BaseModel):
 
 
 class ListJournalScopeSpec(BaseModel):
-    scopes: List[JournalPermissionsSpec]
+    scopes: List[JournalScopeSpec]
 
 
 class ScopeResponse(BaseModel):
@@ -269,7 +269,7 @@ class JournalScopesAPIRequest(BaseModel):
 class UpdateJournalScopesAPIRequest(BaseModel):
     holder_type: str
     holder_id: str
-    permission_list: List[str]
+    permissions: List[str]
 
 
 class JournalPermission(BaseModel):
@@ -407,6 +407,17 @@ class CollectionSearchResponse(BaseModel):
     next_offset: Optional[int] = None
     max_score: float
     results: List[CollectionSearchResult] = Field(default_factory=list)
+
+
+class CollectionScopeSpec(BaseModel):
+    collection_id: uuid.UUID
+    holder_type: HolderType
+    holder_id: str
+    permission: str
+
+
+class ListCollectionScopeSpec(BaseModel):
+    scopes: List[CollectionScopeSpec] = Field(default_factory=list)
 
 
 class CollectionPermissionsResponse(BaseModel):

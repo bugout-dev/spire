@@ -1450,14 +1450,14 @@ async def update_journal_scopes(
     db_session: Session,
     holder_type: str,
     holder_id: str,
-    permission_list: List[str],
+    permissions: List[str],
     journal_id: UUID,
 ) -> List[str]:
     """
     User and group scopes can be added and only by user who belongs to this group
     and has access to proposed journal.
     """
-    if journal_id is None or holder_id is None or permission_list is None:
+    if journal_id is None or holder_id is None or permissions is None:
         raise JournalNotFound(
             "In order to update journal permissions, all parameters should be specified"
         )
@@ -1482,13 +1482,13 @@ async def update_journal_scopes(
     )
     # Remove permissions already exists in database
     for journal_p in journal_permissions:
-        if journal_p.permission in permission_list:
-            permission_list.remove(journal_p.permission)
+        if journal_p.permission in permissions:
+            permissions.remove(journal_p.permission)
 
-    if not permission_list:
+    if not permissions:
         raise PermissionAlreadyExists(f"Provided permission already exist")
 
-    for permission in permission_list:
+    for permission in permissions:
         journal_p = JournalPermissions(
             holder_type=holder_type,
             journal_id=journal_id,
@@ -1498,7 +1498,7 @@ async def update_journal_scopes(
         db_session.add(journal_p)
     db_session.commit()
 
-    return permission_list
+    return permissions
 
 
 async def delete_journal_scopes(
@@ -1506,14 +1506,14 @@ async def delete_journal_scopes(
     db_session: Session,
     holder_type: str,
     holder_id: str,
-    permission_list: List[str],
+    permissions: List[str],
     journal_id: UUID,
 ) -> List[str]:
     """
     Only group scopes can be deleted and only by user who belongs to this group
     and has access to proposed journal.
     """
-    if journal_id is None or holder_id is None or permission_list is None:
+    if journal_id is None or holder_id is None or permissions is None:
         raise JournalNotFound(
             "In order to update journal permissions, all parameters should be specified"
         )
@@ -1537,7 +1537,7 @@ async def delete_journal_scopes(
     )
 
     journal_permissions_delete = query.filter(
-        JournalPermissions.permission.in_(permission_list)
+        JournalPermissions.permission.in_(permissions)
     ).all()
     if not journal_permissions_delete:
         raise PermissionsNotFound(f"Provided permissions don't exist")
@@ -1547,7 +1547,7 @@ async def delete_journal_scopes(
 
     db_session.commit()
 
-    return permission_list
+    return permissions
 
 
 async def entries_exists_check(
