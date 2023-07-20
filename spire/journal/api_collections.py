@@ -18,6 +18,7 @@ from ..utils.settings import (
 )
 from . import handlers, search
 from .data import (
+    CollectionPermissionsResponse,
     CollectionSearchResponse,
     EntitiesResponse,
     Entity,
@@ -26,6 +27,7 @@ from .data import (
     EntityCollectionsResponse,
     EntityList,
     EntityResponse,
+    EntryUpdateTagActions,
     JournalRepresentationTypes,
 )
 from .version import SPIRE_COLLECTIONS_VERSION
@@ -230,6 +232,61 @@ async def get_entities(
     return result
 
 
+@app.get(
+    "/{collection_id}/entities/{entity_id}",
+    tags=["entities"],
+    response_model=EntityResponse,
+)
+async def get_entity(
+    collection_id: UUID,
+    entity_id: UUID,
+    request: Request,
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> EntityResponse:
+    """
+    Gets a single collection entity.
+    """
+    result = await handlers.get_entry_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=collection_id,
+        entry_id=entity_id,
+        representation=JournalRepresentationTypes.COLLECTION,
+    )
+
+    return result
+
+
+@app.put(
+    "/{collection_id}/entities/{entity_id}",
+    tags=["entities"],
+    response_model=EntityResponse,
+)
+async def update_entity_content(
+    request: Request,
+    collection_id: UUID = Path(...),
+    entity_id: UUID = Path(...),
+    update_request: Entity = Body(...),
+    db_session: Session = Depends(db.yield_connection_from_env),
+    es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
+) -> EntityResponse:
+    """
+    Modifies the content of a collection entity through a simple override.
+    """
+    result = await handlers.update_entry_content_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=collection_id,
+        entry_id=entity_id,
+        update_request=update_request,
+        es_client=es_client,
+        representation=JournalRepresentationTypes.COLLECTION,
+        tags_action=EntryUpdateTagActions.replace,
+    )
+
+    return result
+
+
 @app.delete(
     "/{collection_id}/entities/{entity_id}",
     tags=["entities"],
@@ -251,6 +308,35 @@ async def delete_entity(
         journal_id=collection_id,
         entry_id=entity_id,
         es_client=es_client,
+        representation=JournalRepresentationTypes.COLLECTION,
+    )
+
+    return result
+
+
+@app.get(
+    "/{collection_id}/permissions",
+    tags=["permissions"],
+    response_model=CollectionPermissionsResponse,
+)
+async def get_journal_permissions(
+    request: Request,
+    collection_id: UUID = Path(...),
+    holder_ids: Optional[str] = Query(None),
+    db_session: Session = Depends(db.yield_connection_from_env),
+) -> CollectionPermissionsResponse:
+    """
+    If requester has JournalScopes.READ permission on a collection,
+    they can see all permission holders for that collection.
+
+    - **collection_id** (uuid): Collection ID to extract permissions from
+    - **holder_ids** (str, None): Filter our holders (user or group) by ID
+    """
+    result = await handlers.get_journal_permissions_handler(
+        db_session=db_session,
+        request=request,
+        journal_id=collection_id,
+        holder_ids=holder_ids,
         representation=JournalRepresentationTypes.COLLECTION,
     )
 

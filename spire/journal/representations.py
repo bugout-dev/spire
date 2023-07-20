@@ -13,6 +13,7 @@ from uuid import UUID
 from web3 import Web3
 
 from .data import (
+    CollectionPermissionsResponse,
     CollectionSearchResponse,
     CollectionSearchResult,
     EntitiesResponse,
@@ -21,6 +22,8 @@ from .data import (
     EntityCollectionsResponse,
     EntityResponse,
     JournalEntryResponse,
+    JournalPermission,
+    JournalPermissionsResponse,
     JournalRepresentationTypes,
     JournalResponse,
     JournalSearchResult,
@@ -251,6 +254,21 @@ async def parse_entries_model_collection(
     return EntitiesResponse(entities=entries)
 
 
+# Permission parsers
+async def parse_permissions_model(
+    journal_id: UUID, permissions: List[JournalPermission]
+) -> JournalPermissionsResponse:
+    return JournalPermissionsResponse(journal_id=journal_id, permissions=permissions)
+
+
+async def parse_permissions_model_collection(
+    journal_id: UUID, permissions: List[JournalPermission]
+) -> CollectionPermissionsResponse:
+    return CollectionPermissionsResponse(
+        collection_id=journal_id, permissions=permissions
+    )
+
+
 # Search entry parsers
 async def parse_search_entry_model(
     entry_id: str,
@@ -355,6 +373,7 @@ journal_representation_parsers: Dict[
         "journals": parse_journals_model,
         "entry": parse_entry_model,
         "entries": parse_entries_model,
+        "permissions": parse_permissions_model,
         "search_entry": parse_search_entry_model,
         "search_entries": parse_search_entries_model,
     },
@@ -363,6 +382,7 @@ journal_representation_parsers: Dict[
         "journals": parse_journals_model_collection,
         "entry": parse_entry_model_collection,
         "entries": parse_entries_model_collection,
+        "permissions": parse_permissions_model_collection,
         "search_entry": parse_search_entry_model_collection,
         "search_entries": parse_search_entries_model_collection,
     },

@@ -275,7 +275,7 @@ class UpdateJournalScopesAPIRequest(BaseModel):
 class JournalPermission(BaseModel):
     holder_type: HolderType
     holder_id: str
-    permissions: List[str]
+    permissions: List[str] = Field(default_factory=list)
 
 
 class JournalPermissionsResponse(BaseModel):
@@ -407,3 +407,8 @@ class CollectionSearchResponse(BaseModel):
     next_offset: Optional[int] = None
     max_score: float
     results: List[CollectionSearchResult] = Field(default_factory=list)
+
+
+class CollectionPermissionsResponse(BaseModel):
+    collection_id: uuid.UUID
+    permissions: List[JournalPermission] = Field(default_factory=list)
