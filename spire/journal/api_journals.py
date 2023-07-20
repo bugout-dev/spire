@@ -264,7 +264,7 @@ async def add_journal_scopes(
     :param journal_id: Journal ID to extract permissions from.
     :param create_request: Journal permissions parameters.
     """
-    result = await handlers.update_journal_scopes_handler(
+    result = await handlers.add_journal_scopes_handler(
         db_session=db_session,
         request=request,
         journal_id=journal_id,
@@ -432,15 +432,15 @@ async def update_journal(
 
 @app.delete(
     "/{journal_id}",
-    tags=["journals", "collections"],
-    response_model=Union[JournalResponse, EntityCollectionResponse],
+    tags=["journals"],
+    response_model=JournalResponse,
 )
 async def delete_journal(
     request: Request,
     journal_id: UUID = Path(...),
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
-) -> Union[JournalResponse, EntityCollectionResponse]:
+) -> JournalResponse:
     """
     Soft delete the journal with the given ID (assuming the journal was created by the authenticated
     user).

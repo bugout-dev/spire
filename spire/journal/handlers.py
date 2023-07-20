@@ -11,23 +11,35 @@ from sqlalchemy.orm import Session
 from ..utils.settings import DEFAULT_JOURNALS_ES_INDEX
 from . import actions, search
 from .data import (
-    CollectionScopeSpec,
+    CollectionPermissionsResponse,
+    CollectionSearchResponse,
     ContextSpec,
     CreateJournalAPIRequest,
     CreateJournalEntryRequest,
     CreateJournalEntryTagRequest,
     CreateJournalRequest,
+    EntitiesResponse,
     Entity,
     EntityCollection,
+    EntityCollectionResponse,
+    EntityCollectionsResponse,
+    EntityResponse,
     EntryUpdateTagActions,
     JournalEntryContent,
     JournalEntryListContent,
+    JournalEntryResponse,
     JournalEntryScopes,
+    JournalPermissionsResponse,
     JournalRepresentationTypes,
+    JournalResponse,
     JournalScopes,
-    JournalScopeSpec,
+    JournalSearchResultsResponse,
     JournalSpec,
     JournalTypes,
+    ListCollectionScopeSpec,
+    ListJournalEntriesResponse,
+    ListJournalScopeSpec,
+    ListJournalsResponse,
     UpdateJournalScopesAPIRequest,
 )
 from .models import JournalEntryTag
@@ -41,7 +53,7 @@ logger = logging.getLogger(__name__)
 # - list_collections
 async def list_journals_handler(
     db_session: Session, request: Request, representation: JournalRepresentationTypes
-):
+) -> Union[ListJournalsResponse, EntityCollectionsResponse]:
     try:
         journals = await actions.find_journals(
             db_session=db_session,
@@ -62,8 +74,8 @@ async def list_journals_handler(
     except actions.JournalNotFound:
         logger.error(f"Journals not found for user={request.state.user_id}")
         raise HTTPException(status_code=404)
-    except Exception as err:
-        logger.error(err)
+    except Exception as e:
+        logger.error(f"Error list journals: {str(e)}")
         raise HTTPException(status_code=500)
 
     return result
@@ -77,7 +89,7 @@ async def create_journal_handler(
     request: Request,
     create_request: Union[CreateJournalAPIRequest, EntityCollection],
     representation: JournalRepresentationTypes,
-):
+) -> Union[JournalResponse, EntityCollectionResponse]:
     search_index: Optional[str] = DEFAULT_JOURNALS_ES_INDEX
     if create_request.journal_type == JournalTypes.HUMBUG:
         search_index = None
@@ -109,7 +121,7 @@ async def delete_journal_handler(
     journal_id: UUID,
     es_client: Elasticsearch,
     representation: JournalRepresentationTypes,
-):
+) -> Union[JournalResponse, EntityCollectionResponse]:
     actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -152,7 +164,7 @@ async def create_journal_entry_handler(
     create_request: Union[JournalEntryContent, Entity],
     es_client: Elasticsearch,
     representation: JournalRepresentationTypes,
-):
+) -> Union[JournalEntryResponse, EntityResponse]:
     journal = actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -194,6 +206,9 @@ async def create_journal_entry_handler(
             context_type="entity",
         )
     else:
+        logger.error(
+            f"Unsupported {JournalRepresentationTypes.JOURNAL.value} representation type"
+        )
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
@@ -261,7 +276,7 @@ async def create_journal_entries_pack_handler(
     create_request: Union[JournalEntryListContent, Entity],
     es_client: Elasticsearch,
     representation: JournalRepresentationTypes,
-):
+) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
     actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -326,7 +341,7 @@ async def get_entries_handler(
     context_type: Optional[str] = None,
     context_id: Optional[str] = None,
     context_url: Optional[str] = None,
-):
+) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
     actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -398,7 +413,7 @@ async def get_entry_handler(
     journal_id: UUID,
     entry_id: UUID,
     representation: JournalRepresentationTypes,
-):
+) -> Union[JournalEntryResponse, EntityResponse]:
     actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -456,7 +471,7 @@ async def update_entry_content_handler(
     es_client: Elasticsearch,
     representation: JournalRepresentationTypes,
     tags_action: EntryUpdateTagActions = EntryUpdateTagActions.merge,
-):
+) -> Union[JournalEntryContent, EntityResponse]:
     journal = actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -609,7 +624,7 @@ async def delete_entry_handler(
     entry_id: UUID,
     es_client: Elasticsearch,
     representation: JournalRepresentationTypes,
-):
+) -> Union[JournalEntryResponse, EntityResponse]:
     journal = actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -679,7 +694,7 @@ async def get_journal_permissions_handler(
     journal_id: UUID,
     holder_ids: str,
     representation: JournalRepresentationTypes,
-):
+) -> Union[JournalPermissionsResponse, CollectionPermissionsResponse]:
     actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
@@ -709,7 +724,7 @@ async def add_journal_scopes_handler(
     journal_id: UUID,
     create_request: UpdateJournalScopesAPIRequest,
     representation: JournalRepresentationTypes,
-):
+) -> Union[ListJournalScopeSpec, ListCollectionScopeSpec]:
     ensure_permissions_set: Set[Union[JournalScopes, JournalEntryScopes]] = {
         JournalScopes.UPDATE
     }
@@ -757,6 +772,9 @@ async def add_journal_scopes_handler(
             f"Journal not found with ID={journal_id} for user={request.state.user_id}"
         )
         raise HTTPException(status_code=404, detail="Journal not found")
+    except Exception as e:
+        logger.error(f"Error add journal scopes: {str(e)}")
+        raise HTTPException(status_code=500)
 
     return await journal_representation_parsers[representation]["scope_specs"](
         scopes=journals_scopes
@@ -773,7 +791,7 @@ async def delete_journal_scopes_handler(
     journal_id: UUID,
     delete_request: UpdateJournalScopesAPIRequest,
     representation: JournalRepresentationTypes,
-):
+) -> Union[ListJournalScopeSpec, ListCollectionScopeSpec]:
     if delete_request.holder_type == "group":
         if delete_request.holder_id not in request.state.user_group_id_list_owner:
             raise HTTPException(
@@ -817,6 +835,9 @@ async def delete_journal_scopes_handler(
             f"Journal not found with ID={journal_id} for user={request.state.user_id}"
         )
         raise HTTPException(status_code=404, detail="Journal not found")
+    except Exception as e:
+        logger.error(f"Error delete journal scopes: {str(e)}")
+        raise HTTPException(status_code=500)
 
     return await journal_representation_parsers[representation]["scope_specs"](
         scopes=journals_scopes
@@ -839,7 +860,7 @@ async def search_journal_handler(
     order: search.ResultsOrder,
     representation: JournalRepresentationTypes,
     filters: Optional[List[str]] = None,
-):
+) -> Union[JournalSearchResultsResponse, CollectionSearchResponse]:
     actions.ensure_journal_permission(
         db_session,
         request.state.user_id,
