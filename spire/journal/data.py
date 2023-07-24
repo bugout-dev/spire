@@ -233,7 +233,7 @@ class JournalSearchResult(BaseModel):
     context_url: Optional[str] = None
 
 
-class JournalScopeSpec(BaseModel):
+class JournalPermissionsSpec(BaseModel):
     journal_id: uuid.UUID
     holder_type: HolderType
     holder_id: str
@@ -241,7 +241,7 @@ class JournalScopeSpec(BaseModel):
 
 
 class ListJournalScopeSpec(BaseModel):
-    scopes: List[JournalScopeSpec]
+    scopes: List[JournalPermissionsSpec]
 
 
 class ScopeResponse(BaseModel):
@@ -261,7 +261,7 @@ class JournalScopesAPIRequest(BaseModel):
 class UpdateJournalScopesAPIRequest(BaseModel):
     holder_type: str
     holder_id: str
-    permissions: List[str]
+    permission_list: List[str]
 
 
 class JournalPermission(BaseModel):
