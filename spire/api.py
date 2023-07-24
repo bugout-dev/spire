@@ -11,8 +11,7 @@ from .data import PingResponse, VersionResponse
 from .github.api import app as github_api
 from .go.api import app as go_api
 from .humbug.api import app as humbug_app
-from .journal.api_journals import app as journals_api
-from .journal.api_collections import app as collections_api
+from .journal.api import app as journal_api
 from .preferences.api import app as preferences_api
 from .public.api import app_public as public_api
 from .slack.api import app as slack_api
@@ -49,8 +48,7 @@ async def version() -> VersionResponse:
 
 app.mount("/go", go_api)
 app.mount("/slack", slack_api)
-app.mount("/journals", journals_api)
-app.mount("/collections", collections_api)
+app.mount("/journals", journal_api)
 app.mount("/public", public_api)
 app.mount("/github", github_api)
 app.mount("/preferences", preferences_api)

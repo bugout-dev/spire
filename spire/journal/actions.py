@@ -26,15 +26,13 @@ from .data import (
     CreateJournalEntryTagRequest,
     CreateJournalRequest,
     EntitiesResponse,
-    EntityCollectionResponse,
-    EntityCollectionsResponse,
     EntityList,
     EntityResponse,
+    EntryRepresentationTypes,
     JournalEntryListContent,
     JournalEntryResponse,
     JournalEntryScopes,
     JournalPermission,
-    JournalRepresentationTypes,
     JournalResponse,
     JournalScopes,
     JournalSearchResultsResponse,
@@ -606,19 +604,19 @@ async def create_journal_entries_pack(
     """
     Bulk pack of entries to database.
     """
-    representation: JournalRepresentationTypes
+    representation: EntryRepresentationTypes
     if type(entries_pack_request) == JournalEntryListContent:
-        representation = JournalRepresentationTypes.JOURNAL
+        representation = EntryRepresentationTypes.ENTRY
     elif type(entries_pack_request) == EntityList:
-        representation = JournalRepresentationTypes.COLLECTION
+        representation = EntryRepresentationTypes.ENTITY
 
     parsed_entries = []
 
     chunk_size = 50
     e_list = []
-    if representation == JournalRepresentationTypes.JOURNAL:
+    if representation == EntryRepresentationTypes.ENTRY:
         e_list = entries_pack_request.entries
-    elif representation == JournalRepresentationTypes.COLLECTION:
+    elif representation == EntryRepresentationTypes.ENTITY:
         e_list = entries_pack_request.entities
     chunks = [e_list[i : i + chunk_size] for i in range(0, len(e_list), chunk_size)]
     logger.info(
@@ -635,11 +633,11 @@ async def create_journal_entries_pack(
             title: str = ""
             tags: Optional[List[str]] = None
             content: str = ""
-            if representation == JournalRepresentationTypes.JOURNAL:
+            if representation == EntryRepresentationTypes.ENTRY:
                 title = entry_request.title
                 tags = entry_request.tags
                 content = entry_request.content
-            elif representation == JournalRepresentationTypes.COLLECTION:
+            elif representation == EntryRepresentationTypes.ENTITY:
                 title, tags, content_raw = parse_entity_to_entry(
                     create_entity=entry_request,
                 )

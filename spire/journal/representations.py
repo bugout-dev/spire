@@ -13,24 +13,19 @@ from uuid import UUID
 from web3 import Web3
 
 from .data import (
-    CollectionPermissionsResponse,
-    CollectionScopeSpec,
     CollectionSearchResponse,
     CollectionSearchResult,
     EntitiesResponse,
     Entity,
-    EntityCollectionResponse,
-    EntityCollectionsResponse,
     EntityResponse,
+    EntryRepresentationTypes,
     JournalEntryResponse,
     JournalPermission,
     JournalPermissionsResponse,
-    JournalRepresentationTypes,
     JournalResponse,
     JournalScopeSpec,
     JournalSearchResult,
     JournalSearchResultsResponse,
-    ListCollectionScopeSpec,
     ListJournalEntriesResponse,
     ListJournalScopeSpec,
     ListJournalsResponse,
@@ -138,43 +133,6 @@ def parse_entity_to_entry(
     return title, tags, content
 
 
-# Journal parsers
-async def parse_journal_model(
-    journal: Journal, holder_ids: Set[str]
-) -> JournalResponse:
-    return JournalResponse(
-        id=journal.id,
-        bugout_user_id=journal.bugout_user_id,
-        holder_ids=holder_ids,
-        name=journal.name,
-        created_at=journal.created_at,
-        updated_at=journal.updated_at,
-    )
-
-
-async def parse_journals_model(journals: List[JournalResponse]) -> ListJournalsResponse:
-    return ListJournalsResponse(journals=journals)
-
-
-async def parse_journal_model_collection(
-    journal: Journal, holder_ids: Set[str]
-) -> EntityCollectionResponse:
-    return EntityCollectionResponse(
-        collection_id=journal.id,
-        bugout_user_id=journal.bugout_user_id,
-        holder_ids=holder_ids,
-        name=journal.name,
-        created_at=journal.created_at,
-        updated_at=journal.updated_at,
-    )
-
-
-async def parse_journals_model_collection(
-    journals: List[EntityCollectionResponse],
-) -> EntityCollectionsResponse:
-    return EntityCollectionsResponse(collections=journals)
-
-
 # Entry parsers
 @enforce_same_args
 async def parse_entry_model(
@@ -214,7 +172,7 @@ async def parse_entries_model(
 
 
 @enforce_same_args
-async def parse_entry_model_collection(
+async def parse_entry_model_as_entity(
     id: UUID,
     journal_id: UUID,
     title: Optional[str] = None,
@@ -238,8 +196,8 @@ async def parse_entry_model_collection(
 
     return EntityResponse(
         id=id,
-        collection_id=journal_id,
-        collection_url="/".join(url.split("/")[:-2]) if url is not None else None,
+        journal_id=journal_id,
+        journal_url="/".join(url.split("/")[:-2]) if url is not None else None,
         content_url=f"{url}/content" if url is not None else None,
         address=address,
         blockchain=blockchain,
@@ -252,57 +210,10 @@ async def parse_entry_model_collection(
     )
 
 
-async def parse_entries_model_collection(
+async def parse_entries_model_as_entity(
     entries: List[EntityResponse],
 ) -> EntitiesResponse:
     return EntitiesResponse(entities=entries)
-
-
-# Permission parsers
-async def parse_permissions_model(
-    journal_id: UUID, permissions: List[JournalPermission]
-) -> JournalPermissionsResponse:
-    return JournalPermissionsResponse(journal_id=journal_id, permissions=permissions)
-
-
-async def parse_permissions_model_collection(
-    journal_id: UUID, permissions: List[JournalPermission]
-) -> CollectionPermissionsResponse:
-    return CollectionPermissionsResponse(
-        collection_id=journal_id, permissions=permissions
-    )
-
-
-async def parse_scope_spec_model(
-    journal_id: UUID, holder_type: HolderType, holder_id: str, permission: str
-) -> JournalScopeSpec:
-    return JournalScopeSpec(
-        journal_id=journal_id,
-        holder_type=holder_type,
-        holder_id=holder_id,
-        permission=permission,
-    )
-
-
-async def parse_scope_specs_model(scopes: JournalScopeSpec) -> JournalScopeSpec:
-    return ListJournalScopeSpec(scopes=scopes)
-
-
-async def parse_scope_spec_model_collection(
-    journal_id: UUID, holder_type: HolderType, holder_id: str, permission: str
-) -> JournalScopeSpec:
-    return CollectionScopeSpec(
-        collection_id=journal_id,
-        holder_type=holder_type,
-        holder_id=holder_id,
-        permission=permission,
-    )
-
-
-async def parse_scope_specs_model_collection(
-    scopes: CollectionScopeSpec,
-) -> ListCollectionScopeSpec:
-    return ListCollectionScopeSpec(scopes=scopes)
 
 
 # Search entry parsers
@@ -352,7 +263,7 @@ async def parse_search_entries_model(
     )
 
 
-async def parse_search_entry_model_collection(
+async def parse_search_entry_model_as_entity(
     entry_id: str,
     journal_id: str,
     entry_url: str,
@@ -371,7 +282,7 @@ async def parse_search_entry_model_collection(
 
     return CollectionSearchResult(
         id=entry_id,
-        collection_id=journal_id,
+        journal_id=journal_id,
         entity_url=entry_url,
         content_url=content_url,
         title=" - ".join(title.split(" - ")[1:]),
@@ -385,7 +296,7 @@ async def parse_search_entry_model_collection(
     )
 
 
-async def parse_search_entries_model_collection(
+async def parse_search_entries_model_as_entity(
     total_results: int,
     offset: int,
     max_score: float,
@@ -401,29 +312,17 @@ async def parse_search_entries_model_collection(
     )
 
 
-journal_representation_parsers: Dict[
-    JournalRepresentationTypes, Dict[str, Callable]
-] = {
-    JournalRepresentationTypes.JOURNAL: {
-        "journal": parse_journal_model,
-        "journals": parse_journals_model,
+journal_representation_parsers: Dict[EntryRepresentationTypes, Dict[str, Callable]] = {
+    EntryRepresentationTypes.ENTRY: {
         "entry": parse_entry_model,
         "entries": parse_entries_model,
-        "permissions": parse_permissions_model,
-        "scope_spec": parse_scope_spec_model,
-        "scope_specs": parse_scope_specs_model,
         "search_entry": parse_search_entry_model,
         "search_entries": parse_search_entries_model,
     },
-    JournalRepresentationTypes.COLLECTION: {
-        "journal": parse_journal_model_collection,
-        "journals": parse_journals_model_collection,
-        "entry": parse_entry_model_collection,
-        "entries": parse_entries_model_collection,
-        "permissions": parse_permissions_model_collection,
-        "scope_spec": parse_scope_spec_model_collection,
-        "scope_specs": parse_scope_specs_model_collection,
-        "search_entry": parse_search_entry_model_collection,
-        "search_entries": parse_search_entries_model_collection,
+    EntryRepresentationTypes.ENTITY: {
+        "entry": parse_entry_model_as_entity,
+        "entries": parse_entries_model_as_entity,
+        "search_entry": parse_search_entry_model_as_entity,
+        "search_entries": parse_search_entries_model_as_entity,
     },
 }

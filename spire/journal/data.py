@@ -54,9 +54,9 @@ class RuleActions(Enum):
     unlock = "unlock"
 
 
-class JournalRepresentationTypes(Enum):
-    COLLECTION = "collection"
-    JOURNAL = "journal"
+class EntryRepresentationTypes(Enum):
+    ENTRY = "entry"
+    ENTITY = "entity"
 
 
 class CreateJournalAPIRequest(BaseModel):
@@ -347,28 +347,10 @@ class EntityList(BaseModel):
     entities: List[Entity] = Field(default_factory=list)
 
 
-class EntityCollection(BaseModel):
-    name: str
-    journal_type: JournalTypes = JournalTypes.DEFAULT
-
-
-class EntityCollectionResponse(BaseModel):
-    collection_id: uuid.UUID
-    bugout_user_id: str
-    holder_ids: Set[str] = Field(default_factory=set)
-    name: str
-    created_at: datetime
-    updated_at: datetime
-
-
-class EntityCollectionsResponse(BaseModel):
-    collections: List[EntityCollectionResponse] = Field(default_factory=list)
-
-
 class EntityResponse(BaseModel):
     id: uuid.UUID
-    collection_id: uuid.UUID
-    collection_url: Optional[str] = None
+    journal_id: uuid.UUID
+    journal_url: Optional[str] = None
     content_url: Optional[str] = None
     address: Optional[str] = None
     blockchain: Optional[str] = None
@@ -388,7 +370,7 @@ class EntitiesResponse(BaseModel):
 
 class CollectionSearchResult(BaseModel):
     id: str
-    collection_id: str
+    journal_id: str
     entity_url: str
     content_url: str
     title: str
@@ -407,19 +389,3 @@ class CollectionSearchResponse(BaseModel):
     next_offset: Optional[int] = None
     max_score: float
     results: List[CollectionSearchResult] = Field(default_factory=list)
-
-
-class CollectionScopeSpec(BaseModel):
-    collection_id: uuid.UUID
-    holder_type: HolderType
-    holder_id: str
-    permission: str
-
-
-class ListCollectionScopeSpec(BaseModel):
-    scopes: List[CollectionScopeSpec] = Field(default_factory=list)
-
-
-class CollectionPermissionsResponse(BaseModel):
-    collection_id: uuid.UUID
-    permissions: List[JournalPermission] = Field(default_factory=list)
