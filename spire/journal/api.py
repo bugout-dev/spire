@@ -372,7 +372,7 @@ async def delete_journal_scopes(
             db_session,
             delete_request.holder_type,
             delete_request.holder_id,
-            delete_request.permissions,
+            delete_request.permission_list,
             journal_id,
         )
         journals_scopes = [
@@ -380,7 +380,7 @@ async def delete_journal_scopes(
                 journal_id=journal_id,
                 holder_type=delete_request.holder_type,
                 holder_id=delete_request.holder_id,
-                permission=permission_list,
+                permission=permission,
             )
             for permission in added_permissions
         ]
