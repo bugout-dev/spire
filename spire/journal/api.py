@@ -277,7 +277,7 @@ async def add_journal_scopes(
 
     - **holder_type**: User or group
     - **holder_id**: User or group ID
-    - **permissions**: List of permissions to update
+    - **permission_list**: List of permissions to update
     \f
     :param journal_id: Journal ID to extract permissions from.
     :param create_request: Journal permissions parameters.
@@ -285,9 +285,9 @@ async def add_journal_scopes(
     ensure_permissions_set: Set[Union[JournalScopes, JournalEntryScopes]] = {
         JournalScopes.UPDATE
     }
-    if JournalScopes.DELETE.value in create_request.permissions:
+    if JournalScopes.DELETE.value in create_request.permission_list:
         ensure_permissions_set.add(JournalScopes.DELETE)
-    if JournalEntryScopes.DELETE.value in create_request.permissions:
+    if JournalEntryScopes.DELETE.value in create_request.permission_list:
         ensure_permissions_set.add(JournalEntryScopes.DELETE)
 
     actions.ensure_journal_permission(
@@ -304,7 +304,7 @@ async def add_journal_scopes(
             db_session,
             create_request.holder_type,
             create_request.holder_id,
-            create_request.permissions,
+            create_request.permission_list,
             journal_id,
         )
         journals_scopes = [
@@ -347,7 +347,7 @@ async def delete_journal_scopes(
 
     - **holder_type**: User or group
     - **holder_id**: User or group ID
-    - **permissions**: List of permissions to delete
+    - **permission_list**: List of permissions to delete
     \f
     :param journal_id: Journal ID to extract permissions from.
     :param delete_request: Journal permissions parameters.
@@ -380,7 +380,7 @@ async def delete_journal_scopes(
                 journal_id=journal_id,
                 holder_type=delete_request.holder_type,
                 holder_id=delete_request.holder_id,
-                permission=permission,
+                permission=permission_list,
             )
             for permission in added_permissions
         ]
