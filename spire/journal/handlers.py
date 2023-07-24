@@ -89,11 +89,6 @@ async def create_journal_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
-    es_index = None
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
     try:
         journal_entry, entry_lock = await actions.create_journal_entry(
             db_session=db_session,
@@ -199,11 +194,6 @@ async def create_journal_entries_pack_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
-    es_index = None
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
     if es_index is not None:
         e_list = (
             response.entities
@@ -368,12 +358,6 @@ async def update_entry_content_handler(
     )
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
-    es_index = None
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
-
     try:
         (
             journal_entry,
@@ -546,11 +530,6 @@ async def delete_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
-    es_index = None
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
     if es_index is not None:
         try:
             search.delete_entry(

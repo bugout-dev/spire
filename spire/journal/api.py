@@ -2100,11 +2100,6 @@ async def search_journal(
     results: List[Any] = []
 
     es_index = journal.search_index
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
-    es_index = None
-    # TODO: !!!!!!!!!!!!!!
-    # TODO: !!!!!!!!!!!!!!
     if es_index is None:
         total_results, rows = search.search_database(
             db_session, journal_id, search_query, limit, offset, order=order
