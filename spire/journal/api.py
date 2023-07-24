@@ -38,6 +38,7 @@ from ..utils.settings import (
 )
 from . import actions, handlers, search
 from .data import (
+    JournalPermissionsSpec,
     CreateEntriesTagsRequest,
     CreateJournalAPIRequest,
     CreateJournalEntryTagRequest,
@@ -65,7 +66,6 @@ from .data import (
     JournalResponse,
     JournalScopes,
     JournalScopesAPIRequest,
-    JournalScopeSpec,
     JournalSearchResultsResponse,
     JournalSpec,
     JournalStatisticsResponse,
@@ -201,7 +201,7 @@ async def get_journal_scopes_handler(
         )
 
         journals_scopes = [
-            JournalScopeSpec(
+            JournalPermissionsSpec(
                 holder_type=journal_p.holder_type,
                 journal_id=journal_p.journal_id,
                 holder_id=journal_p.holder_id,
@@ -308,7 +308,7 @@ async def add_journal_scopes(
             journal_id,
         )
         journals_scopes = [
-            JournalScopeSpec(
+            JournalPermissionsSpec(
                 journal_id=journal_id,
                 holder_type=create_request.holder_type,
                 holder_id=create_request.holder_id,
@@ -376,7 +376,7 @@ async def delete_journal_scopes(
             journal_id,
         )
         journals_scopes = [
-            JournalScopeSpec(
+            JournalPermissionsSpec(
                 journal_id=journal_id,
                 holder_type=delete_request.holder_type,
                 holder_id=delete_request.holder_id,
