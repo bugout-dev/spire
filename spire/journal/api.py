@@ -38,7 +38,6 @@ from ..utils.settings import (
 )
 from . import actions, handlers, search
 from .data import (
-    CollectionSearchResponse,
     CreateEntriesTagsRequest,
     CreateJournalAPIRequest,
     CreateJournalEntryTagRequest,
@@ -94,7 +93,10 @@ logger = logging.getLogger(__name__)
 tags_metadata = [
     {"name": "journals", "description": "Operations with journal."},
     {"name": "entries", "description": "Operations with journal entry."},
-    {"name": "entities", "description": "Operations with collection entities."},
+    {
+        "name": "entities",
+        "description": "Operations with journal entry in representation as entity.",
+    },
     {"name": "tags", "description": "Operations with journal tag."},
     {"name": "statistics", "description": "Journal statistics generation handlers."},
     {"name": "permissions", "description": "Journal access managements."},
@@ -275,7 +277,7 @@ async def add_journal_scopes(
 
     - **holder_type**: User or group
     - **holder_id**: User or group ID
-    - **permission_list**: List of permissions to update
+    - **permissions**: List of permissions to update
     \f
     :param journal_id: Journal ID to extract permissions from.
     :param create_request: Journal permissions parameters.
@@ -283,9 +285,9 @@ async def add_journal_scopes(
     ensure_permissions_set: Set[Union[JournalScopes, JournalEntryScopes]] = {
         JournalScopes.UPDATE
     }
-    if JournalScopes.DELETE.value in create_request.permission_list:
+    if JournalScopes.DELETE.value in create_request.permissions:
         ensure_permissions_set.add(JournalScopes.DELETE)
-    if JournalEntryScopes.DELETE.value in create_request.permission_list:
+    if JournalEntryScopes.DELETE.value in create_request.permissions:
         ensure_permissions_set.add(JournalEntryScopes.DELETE)
 
     actions.ensure_journal_permission(
@@ -302,7 +304,7 @@ async def add_journal_scopes(
             db_session,
             create_request.holder_type,
             create_request.holder_id,
-            create_request.permission_list,
+            create_request.permissions,
             journal_id,
         )
         journals_scopes = [
@@ -345,7 +347,7 @@ async def delete_journal_scopes(
 
     - **holder_type**: User or group
     - **holder_id**: User or group ID
-    - **permission_list**: List of permissions to delete
+    - **permissions**: List of permissions to delete
     \f
     :param journal_id: Journal ID to extract permissions from.
     :param delete_request: Journal permissions parameters.
@@ -370,7 +372,7 @@ async def delete_journal_scopes(
             db_session,
             delete_request.holder_type,
             delete_request.holder_id,
-            delete_request.permission_list,
+            delete_request.permissions,
             journal_id,
         )
         journals_scopes = [
@@ -821,7 +823,7 @@ async def create_journal_entry(
     tags=["entities"],
     response_model=EntityResponse,
 )
-async def create_collection_entity(
+async def create_journal_entity(
     request: Request,
     journal_id: UUID = Path(...),
     create_request: Entity = Body(...),
@@ -880,7 +882,7 @@ async def create_journal_entries_pack(
     tags=["entities"],
     response_model=EntitiesResponse,
 )
-async def create_collection_entities_pack(
+async def create_journal_entities_pack(
     request: Request,
     journal_id: UUID = Path(...),
     create_request: EntityList = Body(...),
@@ -2045,7 +2047,7 @@ async def delete_tag(
 @app.get(
     "/{journal_id}/search",
     tags=["search"],
-    response_model=Union[JournalSearchResultsResponse, CollectionSearchResponse],
+    response_model=JournalSearchResultsResponse,
 )
 async def search_journal(
     request: Request,
@@ -2060,7 +2062,7 @@ async def search_journal(
     db_session: Session = Depends(db.yield_connection_from_env),
     es_client: Elasticsearch = Depends(es.yield_es_client_from_env),
     representation: EntryRepresentationTypes = Query(EntryRepresentationTypes.ENTRY),
-) -> Union[JournalSearchResultsResponse, CollectionSearchResponse]:
+) -> JournalSearchResultsResponse:
     """
     Executes a search query against the given journal.
     """
@@ -2098,6 +2100,11 @@ async def search_journal(
     results: List[Any] = []
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
+    es_index = None
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
     if es_index is None:
         total_results, rows = search.search_database(
             db_session, journal_id, search_query, limit, offset, order=order
@@ -2187,8 +2194,12 @@ async def search_journal(
     if offset + limit < total_results:
         next_offset = offset + limit
 
-    response = await journal_representation_parsers[representation]["search_entries"](
-        total_results, offset, max_score, next_offset, results
+    response = JournalSearchResultsResponse(
+        total_results=total_results,
+        offset=offset,
+        next_offset=next_offset,
+        max_score=max_score,
+        results=results,
     )
 
     bugout_client_id = actions.bugout_client_id_from_request(request)

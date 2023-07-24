@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # create_journal_entry_handler operates for api endpoints:
 # - create_journal_entry
-# - create_collection_entity
+# - create_journal_entity
 async def create_journal_entry_handler(
     db_session: Session,
     request: Request,
@@ -89,6 +89,11 @@ async def create_journal_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
+    es_index = None
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
     try:
         journal_entry, entry_lock = await actions.create_journal_entry(
             db_session=db_session,
@@ -145,7 +150,7 @@ async def create_journal_entry_handler(
 
 # create_journal_entries_pack_handler operates for api endpoints:
 # - create_journal_entries_pack
-# - create_collection_entities_pack
+# - create_journal_entities_pack
 async def create_journal_entries_pack_handler(
     db_session: Session,
     request: Request,
@@ -194,6 +199,11 @@ async def create_journal_entries_pack_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
+    es_index = None
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
     if es_index is not None:
         e_list = (
             response.entities
@@ -358,6 +368,11 @@ async def update_entry_content_handler(
     )
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
+    es_index = None
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
 
     try:
         (
@@ -531,6 +546,11 @@ async def delete_entry_handler(
         raise HTTPException(status_code=500)
 
     es_index = journal.search_index
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
+    es_index = None
+    # TODO: !!!!!!!!!!!!!!
+    # TODO: !!!!!!!!!!!!!!
     if es_index is not None:
         try:
             search.delete_entry(

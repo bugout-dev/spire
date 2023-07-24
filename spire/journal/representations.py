@@ -13,24 +13,15 @@ from uuid import UUID
 from web3 import Web3
 
 from .data import (
-    CollectionSearchResponse,
-    CollectionSearchResult,
     EntitiesResponse,
     Entity,
     EntityResponse,
     EntryRepresentationTypes,
     JournalEntryResponse,
-    JournalPermission,
-    JournalPermissionsResponse,
-    JournalResponse,
-    JournalScopeSpec,
     JournalSearchResult,
-    JournalSearchResultsResponse,
+    JournalSearchResultAsEntity,
     ListJournalEntriesResponse,
-    ListJournalScopeSpec,
-    ListJournalsResponse,
 )
-from .models import HolderType, Journal
 
 logger = logging.getLogger(__name__)
 
@@ -247,22 +238,6 @@ async def parse_search_entry_model(
     )
 
 
-async def parse_search_entries_model(
-    total_results: int,
-    offset: int,
-    max_score: float,
-    next_offset: Optional[int] = None,
-    results: List[JournalSearchResult] = [],
-) -> JournalSearchResultsResponse:
-    return JournalSearchResultsResponse(
-        total_results=total_results,
-        offset=offset,
-        next_offset=next_offset,
-        max_score=max_score,
-        results=results,
-    )
-
-
 async def parse_search_entry_model_as_entity(
     entry_id: str,
     journal_id: str,
@@ -277,10 +252,10 @@ async def parse_search_entry_model_as_entity(
     context_id: Optional[str] = None,
     context_url: Optional[str] = None,
     content: Optional[str] = None,
-) -> CollectionSearchResult:
+) -> JournalSearchResultAsEntity:
     address, blockchain, required_fields = parse_entry_tags_to_entity_fields(tags=tags)
 
-    return CollectionSearchResult(
+    return JournalSearchResultAsEntity(
         id=entry_id,
         journal_id=journal_id,
         entity_url=entry_url,
@@ -296,33 +271,15 @@ async def parse_search_entry_model_as_entity(
     )
 
 
-async def parse_search_entries_model_as_entity(
-    total_results: int,
-    offset: int,
-    max_score: float,
-    next_offset: Optional[int] = None,
-    results: List[EntityResponse] = [],
-) -> CollectionSearchResponse:
-    return CollectionSearchResponse(
-        total_results=total_results,
-        offset=offset,
-        next_offset=next_offset,
-        max_score=max_score,
-        results=results,
-    )
-
-
 journal_representation_parsers: Dict[EntryRepresentationTypes, Dict[str, Callable]] = {
     EntryRepresentationTypes.ENTRY: {
         "entry": parse_entry_model,
         "entries": parse_entries_model,
         "search_entry": parse_search_entry_model,
-        "search_entries": parse_search_entries_model,
     },
     EntryRepresentationTypes.ENTITY: {
         "entry": parse_entry_model_as_entity,
         "entries": parse_entries_model_as_entity,
         "search_entry": parse_search_entry_model_as_entity,
-        "search_entries": parse_search_entries_model_as_entity,
     },
 }

@@ -233,14 +233,6 @@ class JournalSearchResult(BaseModel):
     context_url: Optional[str] = None
 
 
-class JournalSearchResultsResponse(BaseModel):
-    total_results: int
-    offset: int
-    next_offset: Optional[int]
-    max_score: float
-    results: List[JournalSearchResult] = Field(default_factory=list)
-
-
 class JournalScopeSpec(BaseModel):
     journal_id: uuid.UUID
     holder_type: HolderType
@@ -368,11 +360,10 @@ class EntitiesResponse(BaseModel):
     entities: List[EntityResponse] = Field(default_factory=list)
 
 
-class CollectionSearchResult(BaseModel):
+class JournalSearchResultAsEntity(BaseModel):
     id: str
     journal_id: str
     entity_url: str
-    content_url: str
     title: str
     address: str
     blockchain: str
@@ -383,9 +374,11 @@ class CollectionSearchResult(BaseModel):
     score: float
 
 
-class CollectionSearchResponse(BaseModel):
+class JournalSearchResultsResponse(BaseModel):
     total_results: int
     offset: int
-    next_offset: Optional[int] = None
+    next_offset: Optional[int]
     max_score: float
-    results: List[CollectionSearchResult] = Field(default_factory=list)
+    results: List[Union[JournalSearchResult, JournalSearchResultAsEntity]] = Field(
+        default_factory=list
+    )
