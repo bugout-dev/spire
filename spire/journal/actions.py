@@ -733,18 +733,6 @@ async def get_journal_entries(
     return query.all()
 
 
-async def get_journal_entries_extended(
-    db_session: Session,
-    journal_spec: JournalSpec,
-    entry_id: Optional[UUID],
-    user_group_id_list: Optional[List[str]] = None,
-    context_spec: Optional[ContextSpec] = None,
-    limit: Optional[int] = 10,
-    offset: int = 0,
-):
-    pass
-
-
 async def get_journal_entry(
     db_session: Session, journal_entry_id: UUID
 ) -> Optional[JournalEntry]:
