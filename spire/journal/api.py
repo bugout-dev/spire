@@ -38,7 +38,6 @@ from ..utils.settings import (
 )
 from . import actions, handlers, search
 from .data import (
-    JournalPermissionsSpec,
     CreateEntriesTagsRequest,
     CreateJournalAPIRequest,
     CreateJournalEntryTagRequest,
@@ -63,6 +62,7 @@ from .data import (
     JournalEntryScopes,
     JournalEntryTagsResponse,
     JournalPermissionsResponse,
+    JournalPermissionsSpec,
     JournalResponse,
     JournalScopes,
     JournalScopesAPIRequest,
@@ -2117,19 +2117,18 @@ async def search_journal(
             result = await journal_representation_parsers[representation][
                 "search_entry"
             ](
-                str(entry.id),
-                str(journal.id),
-                entry_url,
-                content_url,
-                entry.title,
-                entry.tags,
-                str(entry.created_at),
-                str(entry.updated_at),
-                1.0,
-                entry.context_type,
-                entry.context_id,
-                entry.context_url,
-                entry.content,
+                journal_id=str(journal.id),
+                entry_url=entry_url,
+                content_url=content_url,
+                title=entry.title,
+                tags=entry.tags,
+                created_at=str(entry.created_at),
+                updated_at=str(entry.updated_at),
+                score=1.0,
+                context_type=entry.context_type,
+                context_id=entry.context_id,
+                context_url=entry.context_url,
+                content=entry.content,
             )
             results.append(result)
     else:
@@ -2169,7 +2168,6 @@ async def search_journal(
             result = await journal_representation_parsers[representation][
                 "search_entry"
             ](
-                entry_id=source.get("entry_id", ""),
                 journal_id=str(journal.id),
                 entry_url=entry_url,
                 content_url=content_url,

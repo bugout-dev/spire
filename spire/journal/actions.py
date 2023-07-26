@@ -600,7 +600,7 @@ async def create_journal_entries_pack(
     db_session: Session,
     journal_id: UUID,
     entries_pack_request: Union[JournalEntryListContent, EntityList],
-) -> Union[ListJournalEntriesResponse, EntitiesResponse]:
+) -> ListJournalEntriesResponse:
     """
     Bulk pack of entries to database.
     """
@@ -610,7 +610,7 @@ async def create_journal_entries_pack(
     elif type(entries_pack_request) == EntityList:
         representation = EntryRepresentationTypes.ENTITY
 
-    parsed_entries = []
+    entries_response = ListJournalEntriesResponse(entries=[])
 
     chunk_size = 50
     e_list = []
@@ -662,21 +662,18 @@ async def create_journal_entries_pack(
                     if tag
                 ]
 
-            obj = await journal_representation_parsers[representation]["entry"](
-                id=entry_id,
-                journal_id=journal_id,
-                title=title,
-                content=content,
-                url=None,
-                tags=tags if tags is not None else [],
-                created_at=entry_request.created_at,
-                updated_at=None,
-                context_url=entry_request.context_url,
-                context_type=entry_request.context_type,
-                context_id=entry_request.context_id,
-                locked_by=None,
+            entries_response.entries.append(
+                JournalEntryResponse(
+                    id=entry_id,
+                    title=title,
+                    content=content,
+                    tags=tags if tags is not None else [],
+                    context_url=entry_request.context_url,
+                    context_type=entry_request.context_type,
+                    context_id=entry_request.context_id,
+                    created_at=entry_request.created_at,
+                )
             )
-            parsed_entries.append(obj)
 
         db_session.bulk_save_objects(entries_pack)
         db_session.commit()
@@ -686,7 +683,9 @@ async def create_journal_entries_pack(
         # Append created_at and updated_at from fresh rows from database
         # TODO(kompotkot): Datetime now not returned from bult_save_objects()
         for entry in [
-            e1 for e1 in parsed_entries if e1.id in [e2.id for e2 in entries_pack]
+            e1
+            for e1 in entries_response.entries
+            if e1.id in [e2.id for e2 in entries_pack]
         ]:
             entry.created_at = list(filter(lambda x: x.id == entry.id, entries_pack))[
                 0
@@ -695,9 +694,7 @@ async def create_journal_entries_pack(
                 0
             ].updated_at
 
-    return await journal_representation_parsers[representation]["entries"](
-        parsed_entries
-    )
+    return entries_response
 
 
 async def get_journal_entries(

@@ -179,7 +179,7 @@ async def create_journal_entries_pack_handler(
         raise HTTPException(status_code=500)
 
     try:
-        response = await actions.create_journal_entries_pack(
+        entries_response = await actions.create_journal_entries_pack(
             db_session,
             journal.id,
             create_request,
@@ -195,14 +195,33 @@ async def create_journal_entries_pack_handler(
 
     es_index = journal.search_index
     if es_index is not None:
-        e_list = (
-            response.entities
-            if representation == EntryRepresentationTypes.ENTITY
-            else response.entries
+        search.bulk_create_entries(
+            es_client, es_index, journal_id, entries_response.entries
         )
-        search.bulk_create_entries(es_client, es_index, journal_id, e_list)
 
-    return response
+    if representation != EntryRepresentationTypes.ENTRY:
+        parsed_entries = []
+        for e in entries_response.entries:
+            obj = await journal_representation_parsers[representation]["entry"](
+                id=e.id,
+                journal_id=journal_id,
+                title=e.title,
+                content=e.content,
+                url=str(request.url).rstrip("/"),
+                tags=e.tags,
+                created_at=e.created_at,
+                updated_at=e.updated_at,
+                context_url=e.context_url,
+                context_type=e.context_type,
+                context_id=e.context_id,
+                locked_by=e.locked_by,
+            )
+            parsed_entries.append(obj)
+        return await journal_representation_parsers[representation]["entries"](
+            parsed_entries
+        )
+    else:
+        return entries_response
 
 
 # get_entries_handler operates for api endpoints:

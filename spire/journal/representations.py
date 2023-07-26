@@ -178,23 +178,21 @@ async def parse_entry_model_as_entity(
     locked_by: Optional[str] = None,
 ) -> EntityResponse:
     address, blockchain, required_fields = parse_entry_tags_to_entity_fields(tags=tags)
-
-    secondary_fieds = {}
+    secondary_fields = {}
     try:
-        secondary_fieds = json.loads(content) if content is not None else {}
-    except Exception as err:
-        secondary_fieds = {"JSONDecodeError": "unable to parse as JSON"}
+        secondary_fields = json.loads(content) if content is not None else {}
+    except Exception:
+        secondary_fields = {"JSONDecodeError": "unable to parse as JSON"}
 
     return EntityResponse(
         id=id,
         journal_id=journal_id,
         journal_url="/".join(url.split("/")[:-2]) if url is not None else None,
-        content_url=f"{url}/content" if url is not None else None,
         address=address,
         blockchain=blockchain,
-        title=" - ".join(title.split(" - ")[1:]),
+        title=title,
         required_fields=required_fields,
-        secondary_fields=secondary_fieds,
+        secondary_fields=secondary_fields,
         created_at=created_at,
         updated_at=updated_at,
         locked_by=locked_by,
@@ -209,7 +207,6 @@ async def parse_entries_model_as_entity(
 
 # Search entry parsers
 async def parse_search_entry_model(
-    entry_id: str,
     journal_id: str,
     entry_url: str,
     content_url: str,
@@ -239,7 +236,6 @@ async def parse_search_entry_model(
 
 
 async def parse_search_entry_model_as_entity(
-    entry_id: str,
     journal_id: str,
     entry_url: str,
     content_url: str,
@@ -254,17 +250,20 @@ async def parse_search_entry_model_as_entity(
     content: Optional[str] = None,
 ) -> JournalSearchResultAsEntity:
     address, blockchain, required_fields = parse_entry_tags_to_entity_fields(tags=tags)
+    secondary_fields = {}
+    try:
+        secondary_fields = json.loads(content) if content is not None else {}
+    except Exception:
+        secondary_fields = {"JSONDecodeError": "unable to parse as JSON"}
 
     return JournalSearchResultAsEntity(
-        id=entry_id,
         journal_id=journal_id,
         entity_url=entry_url,
-        content_url=content_url,
-        title=" - ".join(title.split(" - ")[1:]),
+        title=title,
         address=address,
         blockchain=blockchain,
         required_fields=required_fields,
-        secondary_fields=json.loads(content) if content is not None else {},
+        secondary_fields=secondary_fields,
         created_at=created_at,
         updated_at=updated_at,
         score=score,

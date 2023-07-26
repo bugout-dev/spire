@@ -343,7 +343,6 @@ class EntityResponse(BaseModel):
     id: uuid.UUID
     journal_id: uuid.UUID
     journal_url: Optional[str] = None
-    content_url: Optional[str] = None
     address: Optional[str] = None
     blockchain: Optional[str] = None
     title: Optional[str] = None
@@ -361,12 +360,11 @@ class EntitiesResponse(BaseModel):
 
 
 class JournalSearchResultAsEntity(BaseModel):
-    id: str
     journal_id: str
     entity_url: str
     title: str
-    address: str
-    blockchain: str
+    address: Optional[str] = None
+    blockchain: Optional[str] = None
     required_fields: List[Dict[str, Any]] = Field(default_factory=list)
     secondary_fields: Dict[str, Any] = Field(default_factory=dict)
     created_at: str
