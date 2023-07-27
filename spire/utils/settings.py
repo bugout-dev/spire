@@ -129,12 +129,13 @@ def auth_url_from_env() -> str:
     return bugout_auth_url
 
 
-# CORS
-# TODO(neeraj): Use this in journals/api.py. Right now the CORS settings there are hard-coded.
-_origins_raw = os.environ.get("SPIRE_CORS_ALLOWED_ORIGINS")
-if _origins_raw is None:
-    raise ValueError("SPIRE_CORS_ALLOWED_ORIGINS environment variable must be set")
-CORS_ALLOWED_ORIGINS = _origins_raw.split(",")
+# CORS Origins
+SPIRE_RAW_ORIGINS = os.environ.get("SPIRE_CORS_ALLOWED_ORIGINS")
+if SPIRE_RAW_ORIGINS is None:
+    raise ValueError(
+        "SPIRE_CORS_ALLOWED_ORIGINS environment variable must be set (comma-separated list of CORS allowed origins)"
+    )
+SPIRE_RAW_ORIGINS_LST = SPIRE_RAW_ORIGINS.split(",")
 
 DEFAULT_JOURNALS_ES_INDEX = "bugout-main"
 BULK_CHUNKSIZE = 1000

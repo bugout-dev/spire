@@ -12,7 +12,7 @@ from .errors import PreferenceLocked
 from ..data import VersionResponse
 from ..middleware import BroodAuthMiddleware
 from ..utils.settings import (
-    CORS_ALLOWED_ORIGINS,
+    SPIRE_RAW_ORIGINS,
     SPIRE_OPENAPI_LIST,
     DOCS_PATHS,
     DOCS_TARGET_PATH,
@@ -41,7 +41,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_origins=SPIRE_RAW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,12 +1,12 @@
 """
 Journal-related data structures
 """
+import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional, Set, Dict, Union
-import uuid
+from typing import Any, Dict, List, Optional, Set, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Extra, Field, root_validator
 
 from .models import HolderType
 
@@ -52,6 +52,11 @@ class StatsTypes(Enum):
 class RuleActions(Enum):
     remove = "remove"
     unlock = "unlock"
+
+
+class EntryRepresentationTypes(Enum):
+    ENTRY = "entry"
+    ENTITY = "entity"
 
 
 class CreateJournalAPIRequest(BaseModel):
@@ -228,14 +233,6 @@ class JournalSearchResult(BaseModel):
     context_url: Optional[str] = None
 
 
-class JournalSearchResultsResponse(BaseModel):
-    total_results: int
-    offset: int
-    next_offset: Optional[int]
-    max_score: float
-    results: List[JournalSearchResult]
-
-
 class JournalPermissionsSpec(BaseModel):
     journal_id: uuid.UUID
     holder_type: HolderType
@@ -270,7 +267,7 @@ class UpdateJournalScopesAPIRequest(BaseModel):
 class JournalPermission(BaseModel):
     holder_type: HolderType
     holder_id: str
-    permissions: List[str]
+    permissions: List[str] = Field(default_factory=list)
 
 
 class JournalPermissionsResponse(BaseModel):
@@ -305,3 +302,81 @@ class DeletingQuery(BaseModel):
 class TagUsage(BaseModel):
     tag: str
     count: int
+
+
+# Entity representation
+class Entity(BaseModel, extra=Extra.allow):
+    address: str
+    blockchain: str
+    title: str
+
+    context_url: Optional[str] = None
+    context_id: Optional[str] = None
+    context_type: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    required_fields: List[Dict[str, Union[str, bool, int, list]]] = Field(
+        default_factory=list
+    )
+
+    extra: Dict[str, Any]
+
+    @root_validator(pre=True)
+    def build_extra(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        all_required_field_names = {
+            field.alias for field in cls.__fields__.values() if field.alias != "extra"
+        }
+
+        extra: Dict[str, Any] = {}
+        for field_name in list(values):
+            if field_name not in all_required_field_names:
+                extra[field_name] = values.pop(field_name)
+        values["extra"] = extra
+        return values
+
+
+class EntityList(BaseModel):
+    entities: List[Entity] = Field(default_factory=list)
+
+
+class EntityResponse(BaseModel):
+    id: uuid.UUID
+    journal_id: uuid.UUID
+    journal_url: Optional[str] = None
+    address: Optional[str] = None
+    blockchain: Optional[str] = None
+    title: Optional[str] = None
+
+    required_fields: Optional[List[Dict[str, Any]]] = None
+    secondary_fields: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    locked_by: Optional[str] = None
+
+
+class EntitiesResponse(BaseModel):
+    entities: List[EntityResponse] = Field(default_factory=list)
+
+
+class JournalSearchResultAsEntity(BaseModel):
+    journal_id: str
+    entity_url: str
+    title: str
+    address: Optional[str] = None
+    blockchain: Optional[str] = None
+    required_fields: List[Dict[str, Any]] = Field(default_factory=list)
+    secondary_fields: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+    updated_at: str
+    score: float
+
+
+class JournalSearchResultsResponse(BaseModel):
+    total_results: int
+    offset: int
+    next_offset: Optional[int]
+    max_score: float
+    results: List[Union[JournalSearchResult, JournalSearchResultAsEntity]] = Field(
+        default_factory=list
+    )

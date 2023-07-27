@@ -1,51 +1,58 @@
 """
 Journal-related actions in Spire
 """
-from datetime import date, timedelta, datetime
 import calendar
 import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Set, Optional, Tuple, Union
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from uuid import UUID, uuid4
 
 import boto3
-
-from sqlalchemy.orm import Session, Query
-from sqlalchemy import or_, func, text, and_, select
+from fastapi import HTTPException, Request
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Query, Session
 
-
+from ..broodusers import bugout_api
+from ..utils.confparse import scope_conf
+from ..utils.settings import BUGOUT_CLIENT_ID_HEADER
 from .data import (
-    JournalScopes,
-    JournalEntryScopes,
-    CreateJournalRequest,
-    JournalSpec,
-    JournalStatisticsSpecs,
-    CreateJournalEntryRequest,
-    JournalEntryListContent,
-    CreateJournalEntryTagRequest,
-    CreateEntriesTagsRequest,
-    JournalSearchResultsResponse,
-    JournalStatisticsResponse,
-    UpdateJournalSpec,
-    ListJournalEntriesResponse,
-    JournalEntryResponse,
-    JournalPermission,
     ContextSpec,
+    CreateEntriesTagsRequest,
+    CreateJournalEntryRequest,
+    CreateJournalEntryTagRequest,
+    CreateJournalRequest,
+    EntitiesResponse,
+    EntityList,
+    EntityResponse,
+    EntryRepresentationTypes,
+    JournalEntryListContent,
+    JournalEntryResponse,
+    JournalEntryScopes,
+    JournalPermission,
+    JournalResponse,
+    JournalScopes,
+    JournalSearchResultsResponse,
+    JournalSpec,
+    JournalStatisticsResponse,
+    JournalStatisticsSpecs,
+    ListJournalEntriesResponse,
+    ListJournalsResponse,
+    UpdateJournalSpec,
 )
 from .models import (
+    HolderType,
     Journal,
     JournalEntry,
     JournalEntryLock,
     JournalEntryTag,
     JournalPermissions,
-    HolderType,
     SpireOAuthScopes,
 )
-from ..utils.confparse import scope_conf
-from ..broodusers import bugout_api
+from .representations import journal_representation_parsers, parse_entity_to_entry
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +114,18 @@ class CommitFailed(Exception):
     """
     Raised when commit failed.
     """
+
+
+def bugout_client_id_from_request(request: Request) -> Optional[str]:
+    """
+    Returns Bugout search client ID from request if it has been passed.
+    """
+    bugout_client_id: Optional[str] = request.headers.get(BUGOUT_CLIENT_ID_HEADER)
+    # We are deprecating the SIMIOTICS_CLIENT_ID_HEADER header in favor of BUGOUT_CLIENT_ID_HEADER, but
+    # this needs to be here for legacy support.
+    if bugout_client_id is None:
+        bugout_client_id = request.headers.get("x-simiotics-client-id")
+    return bugout_client_id
 
 
 def acl_auth(
@@ -190,6 +209,38 @@ def acl_check(
     required_scopes_values = {scope.value for scope in required_scopes}
     if not required_scopes_values.issubset(permissions):
         raise PermissionsNotFound("No permissions for requested information")
+
+
+def ensure_journal_permission(
+    db_session: Session,
+    user_id: str,
+    user_group_ids: List[str],
+    journal_id: UUID,
+    required_scopes: Set[Union[JournalScopes, JournalEntryScopes]],
+) -> Journal:
+    """
+    Checks if the given user (who is a member of the groups specified by user_group_ids) holds the
+    given scope on the journal specified by journal_id.
+
+    Returns: None if the user is a holder of that scope, and raises the appropriate HTTPException
+    otherwise.
+    """
+    try:
+        journal, acl = acl_auth(db_session, user_id, user_group_ids, journal_id)
+        acl_check(acl, required_scopes)
+    except PermissionsNotFound:
+        logger.error(
+            f"User (id={user_id}) does not have the appropriate permissions (scopes={required_scopes}) "
+            f"for journal (id={journal_id})"
+        )
+        raise HTTPException(status_code=404)
+    except Exception:
+        logger.error(
+            f"Error checking permissions for user (id={user_id}) in journal (id={journal_id})"
+        )
+        raise HTTPException(status_code=500)
+
+    return journal
 
 
 async def find_journals(
@@ -388,7 +439,6 @@ async def journal_statistics(
     tags: List[str],
     user_group_id_list: Optional[List[str]] = None,
 ) -> JournalStatisticsResponse:
-
     """
     Return journals statistics.
     For now just amount of entries for default periods.
@@ -549,52 +599,75 @@ async def create_journal_entry(
 async def create_journal_entries_pack(
     db_session: Session,
     journal_id: UUID,
-    entries_pack_request: JournalEntryListContent,
+    entries_pack_request: Union[JournalEntryListContent, EntityList],
 ) -> ListJournalEntriesResponse:
     """
     Bulk pack of entries to database.
     """
+    representation: EntryRepresentationTypes
+    if type(entries_pack_request) == JournalEntryListContent:
+        representation = EntryRepresentationTypes.ENTRY
+    elif type(entries_pack_request) == EntityList:
+        representation = EntryRepresentationTypes.ENTITY
+
     entries_response = ListJournalEntriesResponse(entries=[])
 
     chunk_size = 50
-    chunks = [
-        entries_pack_request.entries[i : i + chunk_size]
-        for i in range(0, len(entries_pack_request.entries), chunk_size)
-    ]
+    e_list = []
+    if representation == EntryRepresentationTypes.ENTRY:
+        e_list = entries_pack_request.entries
+    elif representation == EntryRepresentationTypes.ENTITY:
+        e_list = entries_pack_request.entities
+    chunks = [e_list[i : i + chunk_size] for i in range(0, len(e_list), chunk_size)]
     logger.info(
         f"Entries pack split into to {len(chunks)} chunks for journal {str(journal_id)}"
     )
+
     for chunk in chunks:
         entries_pack = []
         entries_tags_pack = []
 
         for entry_request in chunk:
             entry_id = uuid4()
+
+            title: str = ""
+            tags: Optional[List[str]] = None
+            content: str = ""
+            if representation == EntryRepresentationTypes.ENTRY:
+                title = entry_request.title
+                tags = entry_request.tags
+                content = entry_request.content
+            elif representation == EntryRepresentationTypes.ENTITY:
+                title, tags, content_raw = parse_entity_to_entry(
+                    create_entity=entry_request,
+                )
+                content = json.dumps(content_raw)
+
             entries_pack.append(
                 JournalEntry(
                     id=entry_id,
                     journal_id=journal_id,
-                    title=entry_request.title,
-                    content=entry_request.content,
+                    title=title,
+                    content=content,
                     context_id=entry_request.context_id,
                     context_url=entry_request.context_url,
                     context_type=entry_request.context_type,
                     created_at=entry_request.created_at,
                 )
             )
-            if entry_request.tags is not None:
+            if tags is not None:
                 entries_tags_pack += [
                     JournalEntryTag(journal_entry_id=entry_id, tag=tag)
-                    for tag in entry_request.tags
+                    for tag in tags
                     if tag
                 ]
 
             entries_response.entries.append(
                 JournalEntryResponse(
                     id=entry_id,
-                    title=entry_request.title,
-                    content=entry_request.content,
-                    tags=entry_request.tags if entry_request.tags is not None else [],
+                    title=title,
+                    content=content,
+                    tags=tags if tags is not None else [],
                     context_url=entry_request.context_url,
                     context_type=entry_request.context_type,
                     context_id=entry_request.context_id,
@@ -1102,7 +1175,6 @@ async def create_journal_entries_tags(
     journal: Journal,
     entries_tags_request: CreateEntriesTagsRequest,
 ) -> List[UUID]:
-
     """
     Create tags for entries in journal.
     """
@@ -1142,7 +1214,6 @@ async def delete_journal_entries_tags(
     journal: Journal,
     entries_tags_request: CreateEntriesTagsRequest,
 ) -> List[UUID]:
-
     """
     Delete tags for entries in journal.
     """
@@ -1492,14 +1563,12 @@ async def entries_exists_check(
 async def dedublicate_entries_tags(
     entries_tags: CreateEntriesTagsRequest,
 ) -> List[Dict[str, Any]]:
-
     values: List[Dict[str, Any]] = []
 
     for entry_tag_request in entries_tags.entries:
         entry_id = entry_tag_request.journal_entry_id
 
         for tag in entry_tag_request.tags:
-
             insert_object = {
                 "journal_entry_id": entry_id,
                 "tag": tag,
