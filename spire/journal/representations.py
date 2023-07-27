@@ -82,7 +82,6 @@ def parse_entity_to_entry(
     """
     Parse Entity create request structure to Bugout journal scheme.
     """
-    title = f"{create_entity.title}"
     tags: List[str] = []
     content: Dict[str, Any] = {}
 
@@ -93,7 +92,6 @@ def parse_entity_to_entry(
             except Exception:
                 logger.info(f"Unknown type of web3 address {vals}")
                 address = vals
-            title = f"{address} - {title}"
             tags.append(f"{field}:{address}")
 
         elif field == "blockchain":
@@ -121,7 +119,7 @@ def parse_entity_to_entry(
             for k, v in vals.items():
                 content[k] = v
 
-    return title, tags, content
+    return create_entity.title, tags, content
 
 
 # Entry parsers
